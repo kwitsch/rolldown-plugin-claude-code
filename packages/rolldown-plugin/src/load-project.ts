@@ -34,11 +34,13 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
 
 const withFile = (issues: readonly Issue[], file: string): Issue[] => issues.map((issue) => ({ ...issue, file }));
 
+type TemplateLabel = "hooks template" | "mcp template";
+
 // undefined = unreadable or invalid template (an issue was pushed); JSON itself never parses to undefined.
 async function parseTemplate(
   file: string,
   path: string,
-  label: "hooks template" | "mcp template",
+  label: TemplateLabel,
   issues: Issue[],
 ): Promise<unknown> {
   let text: string;
@@ -66,7 +68,7 @@ async function parseTemplate(
 async function loadTemplate<T extends { readonly entries: readonly BuildEntry[]; readonly issues: readonly Issue[] }>(
   root: string,
   file: string,
-  label: "hooks template" | "mcp template",
+  label: TemplateLabel,
   render: (template: unknown) => T,
   issues: Issue[],
   entries: ResolvedEntry[],
@@ -116,13 +118,17 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
 
   // Sequential, hooks first: the mod leads and MCP entries follow the hook entries.
   const entries: ResolvedEntry[] = [];
-  const hooksJson = options.hooksTemplate === undefined
-    ? undefined
-    : (await loadTemplate(root, options.hooksTemplate, "hooks template", renderHooksTemplate, issues, entries))
-      ?.hooksJson;
-  const mcpJson = options.mcpTemplate === undefined
-    ? undefined
-    : (await loadTemplate(root, options.mcpTemplate, "mcp template", renderMcpTemplate, issues, entries))?.mcpJson;
+  let hooksJson: object | undefined;
+  if (options.hooksTemplate !== undefined) {
+    hooksJson =
+      (await loadTemplate(root, options.hooksTemplate, "hooks template", renderHooksTemplate, issues, entries))
+        ?.hooksJson;
+  }
+  let mcpJson: object | undefined;
+  if (options.mcpTemplate !== undefined) {
+    mcpJson = (await loadTemplate(root, options.mcpTemplate, "mcp template", renderMcpTemplate, issues, entries))
+      ?.mcpJson;
+  }
 
   const assetsLabel = options.assets ?? "assets";
   const assetsDir = resolve(root, assetsLabel);

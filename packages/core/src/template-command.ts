@@ -19,11 +19,23 @@ export const invalid = (path: IssuePath, value: unknown, reason: string): Issue 
   path,
 });
 
+export const notAnObject = (template: unknown): { readonly issues: readonly Issue[] } => ({
+  issues: [{
+    severity: "error",
+    code: "template-invalid",
+    message: `template ${show(template)}: must be an object`,
+  }],
+});
+
+// Output directories of built scripts, shared with the layout check.
+export const OUTPUT_DIRS = { hooks: "hooks", mcp: "mcp" } as const;
+export type OutputDir = keyof typeof OUTPUT_DIRS;
+
 // Shared by the hooks and MCP templates: a relative TypeScript command becomes node + the built <outputDir>/<name>.mjs.
 export function rewriteCommand(
   record: Readonly<Record<string, unknown>>,
   path: IssuePath,
-  outputDir: "hooks" | "mcp",
+  outputDir: OutputDir,
   entries: BuildEntry[],
   issues: Issue[],
 ): Readonly<Record<string, unknown>> {

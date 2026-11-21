@@ -1,6 +1,6 @@
 import type { BuildEntry } from "./build-entry.js";
 import type { Issue } from "./issue.js";
-import { rewriteCommand } from "./template-command.js";
+import { notAnObject, rewriteCommand } from "./template-command.js";
 import type { IssuePath } from "./validate-manifest.js";
 import { isRecord, show } from "./validate-manifest.js";
 
@@ -13,15 +13,7 @@ export interface McpTemplateResult {
 // An object under "mcpServers" is the server list, otherwise the template itself; the output keeps that form.
 export function renderMcpTemplate(template: unknown): McpTemplateResult {
   if (!isRecord(template)) {
-    return {
-      mcpJson: undefined,
-      entries: [],
-      issues: [{
-        severity: "error",
-        code: "template-invalid",
-        message: `template ${show(template)}: must be an object`,
-      }],
-    };
+    return { mcpJson: undefined, entries: [], ...notAnObject(template) };
   }
   const entries: BuildEntry[] = [];
   const issues: Issue[] = [];

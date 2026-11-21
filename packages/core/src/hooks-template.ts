@@ -1,7 +1,7 @@
 import { posix } from "node:path";
 import type { BuildEntry } from "./build-entry.js";
 import type { Issue } from "./issue.js";
-import { invalid, isAbsolute, nameOf, rewriteCommand } from "./template-command.js";
+import { invalid, isAbsolute, nameOf, notAnObject, rewriteCommand } from "./template-command.js";
 import type { IssuePath } from "./validate-manifest.js";
 import { isRecord, show } from "./validate-manifest.js";
 
@@ -43,15 +43,7 @@ function renderHooks(hooks: unknown, entries: BuildEntry[], issues: Issue[]): un
 
 export function renderHooksTemplate(template: unknown): HooksTemplateResult {
   if (!isRecord(template)) {
-    return {
-      hooksJson: undefined,
-      entries: [],
-      issues: [{
-        severity: "error",
-        code: "template-invalid",
-        message: `template ${show(template)}: must be an object`,
-      }],
-    };
+    return { hooksJson: undefined, entries: [], ...notAnObject(template) };
   }
   const entries: BuildEntry[] = [];
   const issues: Issue[] = [];

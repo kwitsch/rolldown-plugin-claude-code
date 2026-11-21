@@ -5,6 +5,7 @@ import type { Issue } from "./issue.js";
 import type { ManifestPath } from "./manifest-paths.js";
 import { manifestPaths } from "./manifest-paths.js";
 import type { PluginManifest } from "./plugin-manifest.js";
+import { OUTPUT_DIRS } from "./template-command.js";
 import { label, show } from "./validate-manifest.js";
 
 export interface LayoutInput {
@@ -82,10 +83,10 @@ export async function validateLayout(input: LayoutInput): Promise<readonly Issue
     }
   }
 
-  if (entries.some((entry) => entry.output.startsWith("hooks/"))) {
+  if (entries.some((entry) => entry.output.startsWith(`${OUTPUT_DIRS.hooks}/`))) {
     await requireFile("hooks/hooks.json", `${show("hooks/hooks.json")} is missing or not a file`);
   }
-  if (entries.some((entry) => entry.output.startsWith("mcp/"))) {
+  if (entries.some((entry) => entry.output.startsWith(`${OUTPUT_DIRS.mcp}/`))) {
     await requireFile(".mcp.json", `${show(".mcp.json")} is missing or not a file`);
   }
   for (const entry of entries) {
