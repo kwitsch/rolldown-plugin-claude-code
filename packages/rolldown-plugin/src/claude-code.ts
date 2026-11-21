@@ -53,7 +53,9 @@ function checkChunk(chunks: readonly OutputChunk[], entries: readonly ResolvedEn
   };
   if (chunks.length !== 1) line(`bundle has ${chunks.length} chunks; expected exactly one`);
 
-  const entry = entries.find((candidate) => candidate.sourcePath === chunk.facadeModuleId);
+  const entry = entries.find((candidate) =>
+    candidate.sourcePath === (chunk.facadeModuleId && resolve(chunk.facadeModuleId))
+  );
   if (entry === undefined) {
     line(`input "${chunk.facadeModuleId}" is not an entry of the hooks template`);
     return { problems, entry };
@@ -74,20 +76,18 @@ function checkChunk(chunks: readonly OutputChunk[], entries: readonly ResolvedEn
 
 // Per-file copy: no empty directories, explicit chmod so the umask never changes the mode.
 async function copyAssets(assetsDir: string, assets: readonly string[], outDir: string): Promise<void> {
-  for (const asset of assets) {
+  await Promise.all(assets.map(async (asset) => {
     const source = join(assetsDir, asset);
     const target = join(outDir, asset);
     await mkdir(dirname(target), { recursive: true });
     await copyFile(source, target);
     await chmod(target, (await stat(source)).mode);
-  }
+  }));
 }
 
 export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
   const emitMetadata = options.emitMetadata ?? true;
   const strict = options.strict ?? false;
-  const root = resolve(options.root ?? process.cwd());
-  const assetsDir = resolve(root, options.assets ?? "assets");
   let project: LoadedProject | undefined;
   let entry: ResolvedEntry | undefined;
 
@@ -98,9 +98,10 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
       const loaded = await loadProject(options);
       project = loaded;
       entry = undefined;
-      this.addWatchFile(join(root, "package.json"));
-      if (options.hooksTemplate !== undefined) this.addWatchFile(resolve(root, options.hooksTemplate));
-      for (const asset of loaded.assets) this.addWatchFile(join(assetsDir, asset));
+      this.addWatchFile(join(loaded.root, "package.json"));
+      this.addWatchFile(loaded.assetsDir);
+      if (options.hooksTemplate !== undefined) this.addWatchFile(resolve(loaded.root, options.hooksTemplate));
+      for (const asset of loaded.assets) this.addWatchFile(join(loaded.assetsDir, asset));
       report(this, loaded.issues, strict);
     },
 
@@ -118,19 +119,14 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
         entry = result.entry;
       }
       if (!emitMetadata) return;
-      if (loaded.manifest !== undefined) {
-        this.emitFile({
-          type: "asset",
-          fileName: ".claude-plugin/plugin.json",
-          source: `${JSON.stringify(loaded.manifest, null, 2)}\n`,
-        });
-      }
-      if (loaded.hooksJson !== undefined) {
-        this.emitFile({
-          type: "asset",
-          fileName: "hooks/hooks.json",
-          source: `${JSON.stringify(loaded.hooksJson, null, 2)}\n`,
-        });
+      const files: [string, object | undefined][] = [
+        [".claude-plugin/plugin.json", loaded.manifest],
+        ["hooks/hooks.json", loaded.hooksJson],
+      ];
+      for (const [fileName, value] of files) {
+        if (value !== undefined) {
+          this.emitFile({ type: "asset", fileName, source: `${JSON.stringify(value, null, 2)}\n` });
+        }
       }
     },
 
@@ -139,7 +135,7 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
       const loaded = project;
       if (!emitMetadata || loaded === undefined || !outputOptions.dir) return;
       const outDir = resolve(outputOptions.dir);
-      await copyAssets(assetsDir, loaded.assets, outDir);
+      await copyAssets(loaded.assetsDir, loaded.assets, outDir);
       if (loaded.manifest === undefined) return;
       const issues = await validateLayout({ outDir, manifest: loaded.manifest, entries: entry ? [entry] : [] });
       report(this, issues, strict);

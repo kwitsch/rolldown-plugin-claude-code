@@ -15,6 +15,8 @@ export interface LoadedProject {
   readonly manifest: PluginManifest | undefined;
   readonly hooksJson: object | undefined;
   readonly entries: readonly ResolvedEntry[];
+  readonly root: string;
+  readonly assetsDir: string;
   readonly assets: readonly string[];
   readonly issues: readonly Issue[];
 }
@@ -76,11 +78,15 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
       const rendered = renderHooksTemplate(template);
       issues.push(...withFile(rendered.issues, templateFile));
       hooksJson = rendered.hooksJson;
-      for (const entry of rendered.entries) {
-        const sourcePath = resolve(dirname(templatePath), entry.source);
-        try {
-          await access(sourcePath);
-        } catch {
+      const resolved = rendered.entries.map((entry) => ({
+        ...entry,
+        sourcePath: resolve(dirname(templatePath), entry.source),
+      }));
+      const missing = await Promise.all(
+        resolved.map((entry) => access(entry.sourcePath).then(() => false, () => true)),
+      );
+      resolved.forEach((entry, i) => {
+        if (missing[i]) {
           issues.push({
             severity: "error",
             code: "path-missing",
@@ -88,8 +94,8 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
             file: templateFile,
           });
         }
-        entries.push({ ...entry, sourcePath });
-      }
+      });
+      entries.push(...resolved);
     }
   }
 
@@ -139,5 +145,5 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
     }
   }
 
-  return { manifest, hooksJson, entries, assets, issues };
+  return { manifest, hooksJson, entries, root, assetsDir, assets, issues };
 }

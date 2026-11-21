@@ -23,6 +23,8 @@ describe("loadProject", () => {
       manifest: { name: "demo", version: "1.0.0", description: "Demo" },
       hooksJson: undefined,
       entries: [],
+      root,
+      assetsDir: join(root, "assets"),
       assets: [],
       issues: [],
     });
