@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - fixtures/*
+  - e2e
 
 catalog:
   "@types/node": 26.6.6

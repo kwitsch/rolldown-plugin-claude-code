@@ -33,6 +33,21 @@ importers:
         specifier: 1.94.0
         version: 1.94.0
 
+  e2e:
+    devDependencies:
+      '@kwitsch/claude-code-plugin-core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.1(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6))
+
   fixtures/mod-and-script:
     dependencies:
       '@kwitsch/tsdown-preset-claude-code':
