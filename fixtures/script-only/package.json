@@ -1,0 +1,19 @@
+{
+  "name": "@fixtures/script-only",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fixture: a plugin with two command hooks and no mod, built with tsdown and the preset.",
+  "author": "Kwitsch",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "test": "diff -r expected plugin && test -x plugin/hooks/session-start.mjs && test -x plugin/hooks/stop.mjs"
+  },
+  "dependencies": {
+    "@kwitsch/tsdown-preset-claude-code": "workspace:*"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:"
+  }
+}

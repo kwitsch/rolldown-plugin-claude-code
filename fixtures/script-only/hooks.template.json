@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "./src/session-start.ts" }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "./src/stop.ts" }] }
+    ]
+  }
+}

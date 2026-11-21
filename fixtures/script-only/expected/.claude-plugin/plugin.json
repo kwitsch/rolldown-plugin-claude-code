@@ -1,0 +1,9 @@
+{
+  "name": "script-only",
+  "version": "0.0.0",
+  "description": "Fixture: a plugin with two command hooks and no mod, built with tsdown and the preset.",
+  "author": {
+    "name": "Kwitsch"
+  },
+  "license": "MIT"
+}
