@@ -12,6 +12,10 @@ Build Claude Code plugins with Rolldown and tsdown. Status: M0 bootstrap — the
 
 Dependency direction: preset -> plugin -> core.
 
+## Runtime requirements
+
+Generated hooks start via `node`, so users of a built plugin need Node 26 or newer in their `PATH`.
+
 ## Development
 
 Target runtime is Node 26; pnpm is pinned via the `packageManager` field.
