@@ -18,6 +18,7 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
+    "@kwitsch/claude-code-plugin-core": "workspace:*",
     "@kwitsch/rolldown-plugin-claude-code": "workspace:*"
   },
   "devDependencies": {

@@ -82,6 +82,9 @@ importers:
 
   packages/tsdown-preset:
     dependencies:
+      '@kwitsch/claude-code-plugin-core':
+        specifier: workspace:*
+        version: link:../core
       '@kwitsch/rolldown-plugin-claude-code':
         specifier: workspace:*
         version: link:../rolldown-plugin
