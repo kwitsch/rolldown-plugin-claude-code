@@ -42,18 +42,22 @@ it("Issue codes are exactly ISSUE_CODES, unique and kebab-case", () => {
   for (const code of ISSUE_CODES) expect(code).toMatch(/^[a-z]+(-[a-z]+)*$/);
 });
 
-it("PluginConfig accepts hooksTemplate, manifest and assets and rejects removed fields", () => {
+it("PluginConfig accepts hooksTemplate, mcpTemplate, manifest and assets and rejects removed fields", () => {
   expectTypeOf<{
     hooksTemplate: "hooks.template.json";
+    mcpTemplate: "mcp.template.json";
     manifest: { displayName: "Graphmind Helper" };
     assets: "assets";
   }>().toExtend<PluginConfig>();
+  accepts<PluginConfig>({ mcpTemplate: "mcp.template.json" });
   // @ts-expect-error
   accepts<PluginConfig>({ mod: "src/mods/register.ts" });
   // @ts-expect-error
   accepts<PluginConfig>({ scripts: ["src/scripts/pre-tool.ts"] });
   // @ts-expect-error
   accepts<PluginConfig>({ hooksTemplate: ["hooks.template.json"] });
+  // @ts-expect-error
+  accepts<PluginConfig>({ mcpTemplate: ["mcp.template.json"] });
   // @ts-expect-error
   accepts<PluginConfig>({ assets: ["assets"] });
 });

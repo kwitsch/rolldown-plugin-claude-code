@@ -21,6 +21,9 @@ const PLUGIN_JSON = ".claude-plugin/plugin.json";
 const HOOKS_JSON = "hooks/hooks.json";
 const MOD: BuildEntry = { kind: "mod", source: "register.ts", output: "hooks/register.js" };
 const SCRIPT: BuildEntry = { kind: "script", source: "pre-tool.ts", output: "hooks/pre-tool.mjs" };
+const MCP_JSON = ".mcp.json";
+const MCP: BuildEntry = { kind: "script", source: "server.ts", output: "mcp/server.mjs" };
+const mcpJsonMissing: Issue = issue("path-missing", `".mcp.json" is missing or not a file`, MCP_JSON);
 
 const pluginJsonMissing: Issue = issue(
   "path-missing",
@@ -123,6 +126,26 @@ it("does not require hooks.json without entries", async () => {
   await build([PLUGIN_JSON]);
   expect(await check({})).toEqual([]);
   expect(await check({}, [])).toEqual([]);
+});
+
+it("does not require .mcp.json for hook entries only", async () => {
+  await build([PLUGIN_JSON, HOOKS_JSON, MOD.output, SCRIPT.output]);
+  expect(await check({}, [MOD, SCRIPT])).toEqual([]);
+});
+
+it("reports a missing .mcp.json for an MCP entry", async () => {
+  await build([PLUGIN_JSON, MCP.output]);
+  expect(await check({}, [MCP])).toEqual([mcpJsonMissing]);
+});
+
+it("does not require hooks.json for MCP entries only", async () => {
+  await build([PLUGIN_JSON, MCP_JSON, MCP.output]);
+  expect(await check({}, [MCP])).toEqual([]);
+});
+
+it("reports hooks.json before .mcp.json", async () => {
+  await build([PLUGIN_JSON, SCRIPT.output, MCP.output]);
+  expect(await check({}, [SCRIPT, MCP])).toEqual([hooksJsonMissing, mcpJsonMissing]);
 });
 
 // Manifest paths: one present and one missing path per field of spec table 4.2

@@ -82,8 +82,11 @@ export async function validateLayout(input: LayoutInput): Promise<readonly Issue
     }
   }
 
-  if (entries.length > 0) {
+  if (entries.some((entry) => entry.output.startsWith("hooks/"))) {
     await requireFile("hooks/hooks.json", `${show("hooks/hooks.json")} is missing or not a file`);
+  }
+  if (entries.some((entry) => entry.output.startsWith("mcp/"))) {
+    await requireFile(".mcp.json", `${show(".mcp.json")} is missing or not a file`);
   }
   for (const entry of entries) {
     await requireFile(entry.output, `${show(entry.output)} built from ${show(entry.source)} is missing or not a file`);
