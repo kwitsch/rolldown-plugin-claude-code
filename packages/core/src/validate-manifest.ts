@@ -36,20 +36,21 @@ export const KNOWN_FIELDS = [
 ] as const;
 
 type KnownField = (typeof KNOWN_FIELDS)[number];
-type IssuePath = readonly (string | number)[];
+// Exported for hooks-template.ts only, not from index.ts.
+export type IssuePath = readonly (string | number)[];
 
 interface FieldType {
   readonly expected: string;
   readonly test: (value: unknown) => boolean;
 }
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+export const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const isStringArray = (value: unknown): value is readonly string[] =>
+export const isStringArray = (value: unknown): value is readonly string[] =>
   Array.isArray(value) && value.every((item) => typeof item === "string");
 
-const show = (value: unknown): string => {
+export const show = (value: unknown): string => {
   try {
     return String(JSON.stringify(value));
   } catch {
@@ -59,7 +60,7 @@ const show = (value: unknown): string => {
 };
 
 // ["agents", 1] -> "agents[1]", ["commands", "deploy", "source"] -> "commands.deploy.source"
-const label = (path: IssuePath): string =>
+export const label = (path: IssuePath): string =>
   path
     .map((segment, index) =>
       index === 0 ? String(segment) : typeof segment === "number" ? `[${segment}]` : `.${segment}`

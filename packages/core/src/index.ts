@@ -1,3 +1,5 @@
+export { renderHooksTemplate } from "./hooks-template.js";
+export type { HookEntry, HooksTemplateResult } from "./hooks-template.js";
 export { ISSUE_CODES } from "./issue.js";
 export type { Issue, IssueCode, IssueSeverity } from "./issue.js";
 export { pluginManifest } from "./map-manifest.js";
