@@ -1,0 +1,82 @@
+name: e2e
+
+on:
+  pull_request:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      failed: ${{ steps.failed.outputs.failed }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # Official native installer (https://code.claude.com/docs/en/setup); launcher lands in ~/.local/bin.
+      - name: Install Claude Code (latest)
+        run: |
+          set -o pipefail
+          curl -fsSL https://claude.ai/install.sh | bash -s latest
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - id: version
+        run: echo "version=$(claude --version)" >> "$GITHUB_OUTPUT"
+      # Rebuild with claude on PATH so the preset's final check runs the real validate.
+      - name: Build fixtures
+        run: pnpm --filter "./fixtures/*" build
+      - name: Run e2e tests
+        run: pnpm test:e2e --reporter=default --reporter=json --outputFile=report.json
+        env:
+          # Live run only on nightly and manual runs; pull requests (including forks) never get the key.
+          ANTHROPIC_API_KEY: ${{ github.event_name != 'pull_request' && secrets.ANTHROPIC_API_KEY || '' }}
+      - id: failed
+        if: failure()
+        run: |
+          {
+            echo "failed<<EOF"
+            jq -r '.testResults[].assertionResults[] | select(.status == "failed") | "- " + .fullName' e2e/report.json || true
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  drift:
+    needs: e2e
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ needs.e2e.outputs.version }}
+      FAILED: ${{ needs.e2e.outputs.failed }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Open format-drift issue
+        run: |
+          # Ensure the label exists first, so the list filter and the create below never fail on a missing label.
+          gh label create format-drift --force --description "Claude Code CLI rules drifted from core"
+          if [ "$(gh issue list --label format-drift --state open --json number --jq length)" != "0" ]; then
+            echo "An open format-drift issue already exists."
+            exit 0
+          fi
+          {
+            echo "The nightly e2e run failed against Claude Code ${VERSION:-unknown version}."
+            echo
+            echo "Failed cases:"
+            echo "${FAILED:-No failed test was recorded; see the run log.}"
+            echo
+            echo "Run: $RUN_URL"
+          } > body.md
+          gh issue create --label format-drift --title "E2E nightly failed against Claude Code ${VERSION:-latest}" --body-file body.md
