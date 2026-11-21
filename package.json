@@ -1,0 +1,17 @@
+{
+  "name": "rolldown-plugin-claude-code",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "format": "dprint fmt",
+    "format:check": "dprint check"
+  },
+  "devDependencies": {
+    "dprint": "0.65.0"
+  },
+  "packageManager": "pnpm@11.20.0"
+}
