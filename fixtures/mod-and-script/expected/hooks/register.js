@@ -1,0 +1,1 @@
+function markerContent(label,input){return`${label}\n${input}`}function register(_on,_options){let marker=process.env.FIXTURE_MARKER;marker&&console.error(marker,markerContent(`register`,``))}export{register};

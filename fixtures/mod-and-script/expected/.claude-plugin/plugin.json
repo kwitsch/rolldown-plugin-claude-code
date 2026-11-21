@@ -1,0 +1,9 @@
+{
+  "name": "mod-and-script",
+  "version": "0.0.0",
+  "description": "Fixture: a plugin with a mod, a command hook with args, a static command and assets, built with tsdown and the preset.",
+  "author": {
+    "name": "Kwitsch"
+  },
+  "license": "MIT"
+}

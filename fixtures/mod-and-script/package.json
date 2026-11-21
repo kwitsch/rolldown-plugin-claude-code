@@ -1,0 +1,19 @@
+{
+  "name": "@fixtures/mod-and-script",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fixture: a plugin with a mod, a command hook with args, a static command and assets, built with tsdown and the preset.",
+  "license": "MIT",
+  "author": "Kwitsch",
+  "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "test": "diff -r expected plugin && test -x plugin/hooks/pre-tool.mjs && test -x plugin/bin/hello.sh"
+  },
+  "dependencies": {
+    "@kwitsch/tsdown-preset-claude-code": "workspace:*"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "mod": "./src/register.ts",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "./src/pre-tool.ts", "args": ["--fixture"] }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      { "matcher": "Write|Edit", "hooks": [{ "type": "command", "command": "echo done" }] }
+    ]
+  }
+}

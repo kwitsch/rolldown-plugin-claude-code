@@ -1,0 +1,2 @@
+#!/usr/bin/env node
+import{readFileSync as e,writeFileSync as t}from"node:fs";function n(e,t){return`${e}\n${t}`}const r=e(0,`utf8`),i=process.env.FIXTURE_MARKER;i&&t(i,n(`pre-tool ${process.argv.slice(2).join(` `)}`,r));export{};
