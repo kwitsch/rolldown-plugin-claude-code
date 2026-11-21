@@ -26,7 +26,9 @@ export async function pluginConfig(options: PresetOptions = {}): Promise<UserCon
   const project = await loadProject(projectOptions);
   if (project.entries.length === 0) {
     throw new Error(
-      formatProblems(["error  the hooks template defines no mod and no command scripts; nothing to build"]),
+      formatProblems([
+        "error  the templates define no mod, no command scripts and no MCP servers; nothing to build",
+      ]),
     );
   }
 

@@ -29,6 +29,12 @@ const THREE: Record<string, string> = {
   "src/stop.ts": "console.log(2);\n",
 };
 const TEMPLATE = { hooksTemplate: "hooks.template.json" } as const;
+const MCP_SOURCES: Record<string, string> = {
+  "mcp.template.json": JSON.stringify({ mcpServers: { demo: { command: "./src/server.ts" } } }),
+  "src/server.ts": "console.log(1);\n",
+};
+const MCP_ONLY: Record<string, string> = { "package.json": PKG, ...MCP_SOURCES };
+const MCP = { mcpTemplate: "mcp.template.json" } as const;
 
 const entryKey = (config: UserConfig): string | undefined => Object.keys(config.entry as Record<string, string>)[0];
 function byKey(configs: readonly UserConfig[], key: string): UserConfig {
@@ -67,7 +73,7 @@ describe("config generation", () => {
   it("rejects a project without entries", async () => {
     const root = await project({ "package.json": PKG, "hooks.template.json": JSON.stringify({ hooks: {} }) });
     await expect(pluginConfig({ root, ...TEMPLATE })).rejects.toThrow(
-      /\[claude-code\] 1 problem\n  error  the hooks template defines no mod and no command scripts; nothing to build/,
+      /\[claude-code\] 1 problem\n {2}error {2}the templates define no mod, no command scripts and no MCP servers; nothing to build/,
     );
   });
 
@@ -173,5 +179,50 @@ describe("final check", () => {
 
     await expect(doneHook(configs[0])?.(ctx)).resolves.toBeUndefined();
     expect(logger.info).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("mcp", () => {
+  it("returns one script config for an MCP-only project", async () => {
+    const root = await project(MCP_ONLY);
+    const configs = await pluginConfig({ root, ...MCP });
+    expect(configs).toHaveLength(1);
+    const [config] = configs;
+    expect(config).toMatchObject({
+      entry: { "mcp/server": join(root, "src/server.ts") },
+      minify: true,
+      banner: "#!/usr/bin/env node",
+      deps: { neverBundle: [], alwaysBundle: [/./] },
+      format: "esm",
+      platform: "node",
+      target: "node26",
+    });
+    expect(config?.outExtensions?.({} as OutExtensionContext)).toEqual({ js: ".mjs" });
+    const calls = vi.mocked(claudeCode).mock.calls.map(([options]) => options);
+    expect(calls.map((options) => options?.emitMetadata)).toEqual([true]);
+    for (const options of calls) expect(options).toMatchObject({ root, strict: true, ...MCP });
+  });
+
+  it("appends MCP configs after the hooks configs", async () => {
+    const root = await project({ ...MOD_ONLY, ...MCP_SOURCES });
+    const configs = await pluginConfig({ root, ...TEMPLATE, ...MCP });
+    expect(configs.map(entryKey)).toEqual(["hooks/register", "mcp/server"]);
+    const calls = vi.mocked(claudeCode).mock.calls.map(([options]) => options);
+    expect(calls.map((options) => options?.emitMetadata)).toEqual([true, false]);
+  });
+
+  it("makes the MCP server executable in the final check", async () => {
+    vi.stubEnv("PATH", await tempDir());
+    const root = await project(MCP_ONLY);
+    const configs = await pluginConfig({ root, ...MCP });
+    const loaded = await loadProject({ root, ...MCP });
+    const outDir = join(root, "plugin");
+    await writeValidTree(outDir, loaded);
+    await expect(access(join(outDir, ".mcp.json"))).resolves.toBeUndefined();
+    await expect(access(join(outDir, "hooks/hooks.json"))).rejects.toThrow(/ENOENT/);
+    const logger = { info: vi.fn(), warn: vi.fn() };
+    const ctx = { options: { logger } } as unknown as Parameters<TsdownHooks["build:done"]>[0];
+    await expect(doneHook(configs[0])?.(ctx)).resolves.toBeUndefined();
+    expect((await stat(join(outDir, "mcp/server.mjs"))).mode & 0o777).toBe(0o755);
   });
 });

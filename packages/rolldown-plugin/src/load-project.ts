@@ -1,5 +1,10 @@
 import type { BuildEntry, Issue, PackageJson, PluginConfig, PluginManifest } from "@kwitsch/claude-code-plugin-core";
-import { pluginManifest, renderHooksTemplate, validateManifest } from "@kwitsch/claude-code-plugin-core";
+import {
+  pluginManifest,
+  renderHooksTemplate,
+  renderMcpTemplate,
+  validateManifest,
+} from "@kwitsch/claude-code-plugin-core";
 import { access, readdir, readFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
@@ -14,6 +19,7 @@ export interface ResolvedEntry extends BuildEntry {
 export interface LoadedProject {
   readonly manifest: PluginManifest | undefined;
   readonly hooksJson: object | undefined;
+  readonly mcpJson: object | undefined;
   readonly entries: readonly ResolvedEntry[];
   readonly root: string;
   readonly assetsDir: string;
@@ -29,13 +35,18 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
 const withFile = (issues: readonly Issue[], file: string): Issue[] => issues.map((issue) => ({ ...issue, file }));
 
 // undefined = unreadable or invalid template (an issue was pushed); JSON itself never parses to undefined.
-async function parseTemplate(file: string, path: string, issues: Issue[]): Promise<unknown> {
+async function parseTemplate(
+  file: string,
+  path: string,
+  label: "hooks template" | "mcp template",
+  issues: Issue[],
+): Promise<unknown> {
   let text: string;
   try {
     text = await readFile(path, "utf8");
   } catch (error) {
     if (!isErrno(error, "ENOENT")) throw error;
-    issues.push({ severity: "error", code: "path-missing", message: `hooks template "${file}" not found`, file });
+    issues.push({ severity: "error", code: "path-missing", message: `${label} "${file}" not found`, file });
     return undefined;
   }
   try {
@@ -44,11 +55,46 @@ async function parseTemplate(file: string, path: string, issues: Issue[]): Promi
     issues.push({
       severity: "error",
       code: "template-invalid",
-      message: `hooks template is not valid JSON: ${messageOf(error)}`,
+      message: `${label} is not valid JSON: ${messageOf(error)}`,
       file,
     });
     return undefined;
   }
+}
+
+// Parses and renders one template, resolves its entries against the template's directory and appends to issues/entries.
+async function loadTemplate<T extends { readonly entries: readonly BuildEntry[]; readonly issues: readonly Issue[] }>(
+  root: string,
+  file: string,
+  label: "hooks template" | "mcp template",
+  render: (template: unknown) => T,
+  issues: Issue[],
+  entries: ResolvedEntry[],
+): Promise<T | undefined> {
+  const templatePath = resolve(root, file);
+  const template = await parseTemplate(file, templatePath, label, issues);
+  if (template === undefined) return undefined;
+  const rendered = render(template);
+  issues.push(...withFile(rendered.issues, file));
+  const resolved = rendered.entries.map((entry) => ({
+    ...entry,
+    sourcePath: resolve(dirname(templatePath), entry.source),
+  }));
+  const missing = await Promise.all(
+    resolved.map((entry) => access(entry.sourcePath).then(() => false, () => true)),
+  );
+  resolved.forEach((entry, i) => {
+    if (missing[i]) {
+      issues.push({
+        severity: "error",
+        code: "path-missing",
+        message: `${entry.kind} "${entry.source}" not found`,
+        file,
+      });
+    }
+  });
+  entries.push(...resolved);
+  return rendered;
 }
 
 export async function loadProject(options: ProjectOptions = {}): Promise<LoadedProject> {
@@ -68,36 +114,15 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
     "package.json",
   );
 
-  let hooksJson: object | undefined;
+  // Sequential, hooks first: the mod leads and MCP entries follow the hook entries.
   const entries: ResolvedEntry[] = [];
-  const templateFile = options.hooksTemplate;
-  if (templateFile !== undefined) {
-    const templatePath = resolve(root, templateFile);
-    const template = await parseTemplate(templateFile, templatePath, issues);
-    if (template !== undefined) {
-      const rendered = renderHooksTemplate(template);
-      issues.push(...withFile(rendered.issues, templateFile));
-      hooksJson = rendered.hooksJson;
-      const resolved = rendered.entries.map((entry) => ({
-        ...entry,
-        sourcePath: resolve(dirname(templatePath), entry.source),
-      }));
-      const missing = await Promise.all(
-        resolved.map((entry) => access(entry.sourcePath).then(() => false, () => true)),
-      );
-      resolved.forEach((entry, i) => {
-        if (missing[i]) {
-          issues.push({
-            severity: "error",
-            code: "path-missing",
-            message: `${entry.kind} "${entry.source}" not found`,
-            file: templateFile,
-          });
-        }
-      });
-      entries.push(...resolved);
-    }
-  }
+  const hooksJson = options.hooksTemplate === undefined
+    ? undefined
+    : (await loadTemplate(root, options.hooksTemplate, "hooks template", renderHooksTemplate, issues, entries))
+      ?.hooksJson;
+  const mcpJson = options.mcpTemplate === undefined
+    ? undefined
+    : (await loadTemplate(root, options.mcpTemplate, "mcp template", renderMcpTemplate, issues, entries))?.mcpJson;
 
   const assetsLabel = options.assets ?? "assets";
   const assetsDir = resolve(root, assetsLabel);
@@ -132,6 +157,7 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
   const generated = new Set([
     ".claude-plugin/plugin.json",
     ...(hooksJson === undefined ? [] : ["hooks/hooks.json"]),
+    ...(mcpJson === undefined ? [] : [".mcp.json"]),
     ...entries.map((entry) => entry.output),
   ]);
   for (const rel of assets) {
@@ -145,5 +171,5 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
     }
   }
 
-  return { manifest, hooksJson, entries, root, assetsDir, assets, issues };
+  return { manifest, hooksJson, mcpJson, entries, root, assetsDir, assets, issues };
 }

@@ -7,7 +7,7 @@ import type { LoadedProject, ProjectOptions, ResolvedEntry } from "./load-projec
 import { loadProject } from "./load-project.js";
 
 export interface ClaudeCodeOptions extends ProjectOptions {
-  /** Emit plugin.json and hooks.json, copy assets and validate the layout (default true). */
+  /** Emit plugin.json, hooks.json and .mcp.json, copy assets and validate the layout (default true). */
   readonly emitMetadata?: boolean;
   /** Treat warnings as errors (default false). */
   readonly strict?: boolean;
@@ -53,9 +53,10 @@ function checkChunk(chunks: readonly OutputChunk[], entries: readonly ResolvedEn
   };
   if (chunks.length !== 1) line(`bundle has ${chunks.length} chunks; expected exactly one`);
 
-  const entry = entries.find((candidate) =>
-    candidate.sourcePath === (chunk.facadeModuleId && resolve(chunk.facadeModuleId))
-  );
+  const id = chunk.facadeModuleId && resolve(chunk.facadeModuleId);
+  // One source may feed both templates; prefer the entry this chunk was built as.
+  const bySource = entries.filter((candidate) => candidate.sourcePath === id);
+  const entry = bySource.find((candidate) => candidate.output === chunk.fileName) ?? bySource[0];
   if (entry === undefined) {
     line(`input "${chunk.facadeModuleId}" is not an entry of the hooks template`);
     return { problems, entry };
@@ -101,6 +102,7 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
       this.addWatchFile(join(loaded.root, "package.json"));
       this.addWatchFile(loaded.assetsDir);
       if (options.hooksTemplate !== undefined) this.addWatchFile(resolve(loaded.root, options.hooksTemplate));
+      if (options.mcpTemplate !== undefined) this.addWatchFile(resolve(loaded.root, options.mcpTemplate));
       for (const asset of loaded.assets) this.addWatchFile(join(loaded.assetsDir, asset));
       report(this, loaded.issues, strict);
     },
@@ -122,6 +124,7 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
       const files: [string, object | undefined][] = [
         [".claude-plugin/plugin.json", loaded.manifest],
         ["hooks/hooks.json", loaded.hooksJson],
+        [".mcp.json", loaded.mcpJson],
       ];
       for (const [fileName, value] of files) {
         if (value !== undefined) {

@@ -1,8 +1,8 @@
 import { chmod, mkdir, mkdtemp, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
-import type { OutputOptions } from "rolldown";
-import { rolldown } from "rolldown";
+import type { OutputOptions, RolldownWatcherEvent } from "rolldown";
+import { rolldown, watch } from "rolldown";
 import { describe, expect, it } from "vitest";
 import type { ClaudeCodeOptions } from "./claude-code.js";
 import { claudeCode } from "./claude-code.js";
@@ -67,6 +67,16 @@ const PLAIN_FILES: Record<string, string> = {
   "src/index.ts": "export const value = 1;\n",
 };
 const PLAIN_INPUT: Record<string, string> = { index: "src/index.ts" };
+const MCP_FILES: Record<string, string> = {
+  "package.json": JSON.stringify({ name: "demo", version: "1.0.0" }),
+  "mcp.template.json": JSON.stringify({ mcpServers: { demo: { command: "./src/server.ts" } } }),
+  "src/server.ts": "console.log(1);\n",
+};
+const MCP_TEMPLATE: ClaudeCodeOptions = { mcpTemplate: "mcp.template.json" };
+const MCP_INPUT: Record<string, string> = { "mcp/server": "src/server.ts" };
+// The preset adds the shebang as a banner; do the same here.
+const MCP_OUTPUT: OutputOptions = { entryFileNames: "[name].mjs", banner: "#!/usr/bin/env node" };
+const MCP_JSON = { mcpServers: { demo: { command: "node", args: ["${CLAUDE_PLUGIN_ROOT}/mcp/server.mjs"] } } };
 
 describe("output", () => {
   it("emits plugin.json, hooks.json and the mod", async () => {
@@ -260,5 +270,96 @@ describe("error output", () => {
     await expect(build(root, {}, PLAIN_INPUT, { dir: undefined, file: join(root, "out.js") })).rejects.toThrow(
       /output\.dir is required \(output\.file is not supported\)/,
     );
+  });
+});
+
+describe("mcp", () => {
+  it("emits .mcp.json and the server with mcpTemplate", async () => {
+    const root = await project(MCP_FILES);
+    const { out, warnings } = await build(root, MCP_TEMPLATE, MCP_INPUT, MCP_OUTPUT);
+    expect(warnings).toEqual([]);
+    expect(await files(out)).toEqual([".claude-plugin/plugin.json", ".mcp.json", "mcp/server.mjs"]);
+    expect(await readFile(join(out, ".mcp.json"), "utf8")).toBe(json(MCP_JSON));
+  });
+
+  it("emits no .mcp.json with emitMetadata: false", async () => {
+    const root = await project(MCP_FILES);
+    const { out } = await build(root, { ...MCP_TEMPLATE, emitMetadata: false }, MCP_INPUT, MCP_OUTPUT);
+    expect(await files(out)).toEqual(["mcp/server.mjs"]);
+  });
+
+  it("emits no .mcp.json without mcpTemplate", async () => {
+    const root = await project({ ...MOD_FILES, "mcp.template.json": MCP_FILES["mcp.template.json"] ?? "" });
+    const { out } = await build(root, TEMPLATE);
+    expect(await files(out)).toEqual([".claude-plugin/plugin.json", "hooks/hooks.json", "hooks/register.js"]);
+  });
+
+  it("rejects an MCP server chunk without a shebang", async () => {
+    const root = await project(MCP_FILES);
+    await expect(build(root, MCP_TEMPLATE, MCP_INPUT, { entryFileNames: "[name].mjs" })).rejects.toThrow(
+      /a script must start with a shebang/,
+    );
+  });
+
+  it("builds the MCP output of a source that both templates use", async () => {
+    const root = await project({
+      ...MCP_FILES,
+      "hooks.template.json": JSON.stringify({
+        hooks: { Stop: [{ hooks: [{ type: "command", command: "./src/server.ts" }] }] },
+      }),
+    });
+    const { out } = await build(root, { ...TEMPLATE, ...MCP_TEMPLATE }, MCP_INPUT, MCP_OUTPUT);
+    expect(await files(out)).toEqual([
+      ".claude-plugin/plugin.json",
+      ".mcp.json",
+      "hooks/hooks.json",
+      "mcp/server.mjs",
+    ]);
+  });
+});
+
+describe("watch", () => {
+  it("rebuilds .mcp.json when the MCP template changes", { timeout: 20_000 }, async () => {
+    const root = await project(MCP_FILES);
+    const out = join(root, "out");
+    const watcher = watch({
+      input: { "mcp/server": join(root, "src/server.ts") },
+      platform: "node",
+      plugins: [claudeCode({ root, ...MCP_TEMPLATE })],
+      output: { dir: out, format: "es", ...MCP_OUTPUT },
+    });
+    // Resolves on the next END of a build cycle, rejects on ERROR; every bundle result is closed.
+    const nextEnd = (): Promise<void> =>
+      new Promise((resolveEnd, rejectEnd) => {
+        const listener = (event: RolldownWatcherEvent): void => {
+          if (event.code === "BUNDLE_END") void event.result.close();
+          if (event.code === "ERROR") {
+            void event.result.close();
+            watcher.off("event", listener);
+            rejectEnd(event.error);
+          }
+          if (event.code === "END") {
+            watcher.off("event", listener);
+            resolveEnd();
+          }
+        };
+        watcher.on("event", listener);
+      });
+    try {
+      await nextEnd();
+      expect(JSON.parse(await readFile(join(out, ".mcp.json"), "utf8"))).toEqual(MCP_JSON);
+      const docs = { type: "http", url: "https://example.com/mcp" };
+      const rebuilt = nextEnd();
+      await writeFile(
+        join(root, "mcp.template.json"),
+        JSON.stringify({ mcpServers: { demo: { command: "./src/server.ts" }, docs } }),
+      );
+      await rebuilt;
+      expect(JSON.parse(await readFile(join(out, ".mcp.json"), "utf8"))).toEqual({
+        mcpServers: { ...MCP_JSON.mcpServers, docs },
+      });
+    } finally {
+      await watcher.close();
+    }
   });
 });

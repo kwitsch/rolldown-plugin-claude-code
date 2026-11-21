@@ -130,6 +130,82 @@ describe("loadProject", () => {
       expect.objectContaining({ code: "template-invalid", path: ["mod"], file: "hooks.template.json" }),
     ]);
   });
+
+  const MCP_TEMPLATE = JSON.stringify({ mcpServers: { demo: { command: "./src/server.ts" } } });
+  const SERVER = "#!/usr/bin/env node\n";
+
+  it("loads only an MCP template", async () => {
+    const root = await project({ "package.json": pkg(), "mcp.template.json": MCP_TEMPLATE, "src/server.ts": SERVER });
+    const result = await loadProject({ root, mcpTemplate: "mcp.template.json" });
+    expect(result.issues).toEqual([]);
+    expect(result.hooksJson).toBeUndefined();
+    expect(result.mcpJson).toEqual({
+      mcpServers: { demo: { command: "node", args: ["${CLAUDE_PLUGIN_ROOT}/mcp/server.mjs"] } },
+    });
+    expect(result.entries).toEqual([
+      { kind: "script", source: "src/server.ts", output: "mcp/server.mjs", sourcePath: join(root, "src/server.ts") },
+    ]);
+  });
+
+  it("orders hook entries before MCP entries", async () => {
+    const root = await project({
+      "package.json": pkg(),
+      "hooks.template.json": JSON.stringify({ mod: "./src/register.ts", hooks: {} }),
+      "mcp.template.json": MCP_TEMPLATE,
+      "src/register.ts": "export function register(): void {}\n",
+      "src/server.ts": SERVER,
+    });
+    const result = await loadProject({ root, hooksTemplate: "hooks.template.json", mcpTemplate: "mcp.template.json" });
+    expect(result.issues).toEqual([]);
+    expect(result.entries.map((entry) => entry.output)).toEqual(["hooks/register.js", "mcp/server.mjs"]);
+  });
+
+  it("reports a missing MCP template as path-missing", async () => {
+    const root = await project({ "package.json": pkg() });
+    const result = await loadProject({ root, mcpTemplate: "mcp.template.json" });
+    expect(result.mcpJson).toBeUndefined();
+    expect(result.entries).toEqual([]);
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "path-missing",
+      message: "mcp template \"mcp.template.json\" not found",
+      file: "mcp.template.json",
+    }]);
+  });
+
+  it("reports a non-JSON MCP template as template-invalid", async () => {
+    const root = await project({ "package.json": pkg(), "mcp.template.json": "{" });
+    const result = await loadProject({ root, mcpTemplate: "mcp.template.json" });
+    expect(result.mcpJson).toBeUndefined();
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0]).toMatchObject({ severity: "error", code: "template-invalid", file: "mcp.template.json" });
+    expect(result.issues[0]?.message).toMatch(/^mcp template is not valid JSON: /);
+  });
+
+  it("reports a missing MCP server source as path-missing", async () => {
+    const root = await project({ "package.json": pkg(), "mcp.template.json": MCP_TEMPLATE });
+    const result = await loadProject({ root, mcpTemplate: "mcp.template.json" });
+    expect(result.entries).toHaveLength(1);
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "path-missing",
+      message: "script \"src/server.ts\" not found",
+      file: "mcp.template.json",
+    }]);
+  });
+
+  it("resolves MCP sources against the MCP template directory", async () => {
+    const root = await project({
+      "package.json": pkg(),
+      "config/mcp.json": JSON.stringify({ mcpServers: { demo: { command: "../src/server.ts" } } }),
+      "src/server.ts": SERVER,
+    });
+    const result = await loadProject({ root, mcpTemplate: "config/mcp.json" });
+    expect(result.issues).toEqual([]);
+    expect(result.entries).toEqual([
+      { kind: "script", source: "../src/server.ts", output: "mcp/server.mjs", sourcePath: join(root, "src/server.ts") },
+    ]);
+  });
 });
 
 describe("loadProject assets", () => {
@@ -185,6 +261,28 @@ describe("loadProject assets", () => {
     const root = await project({ "package.json": pkg(), "assets/hooks/hooks.json": "{}\n" });
     const result = await loadProject({ root });
     expect(result.assets).toEqual(["hooks/hooks.json"]);
+    expect(result.issues).toEqual([]);
+  });
+
+  it("reports assets/.mcp.json as entry-conflict with an MCP template", async () => {
+    const root = await project({
+      "package.json": pkg(),
+      "mcp.template.json": JSON.stringify({ mcpServers: { demo: { type: "http", url: "https://example.com/mcp" } } }),
+      "assets/.mcp.json": "{}\n",
+    });
+    const result = await loadProject({ root, mcpTemplate: "mcp.template.json" });
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "entry-conflict",
+      message: "asset \".mcp.json\" collides with a generated file",
+      file: "assets/.mcp.json",
+    }]);
+  });
+
+  it("allows a hand-written .mcp.json asset without an MCP template", async () => {
+    const root = await project({ "package.json": pkg(), "assets/.mcp.json": "{}\n" });
+    const result = await loadProject({ root });
+    expect(result.assets).toEqual([".mcp.json"]);
     expect(result.issues).toEqual([]);
   });
 
