@@ -7,4 +7,6 @@ export type { ManifestResult } from "./map-manifest.js";
 export type { PackageAuthor, PackageJson, PackageRepository } from "./package-json.js";
 export type { PluginConfig } from "./plugin-config.js";
 export type { PluginAuthor, PluginDependency, PluginManifest } from "./plugin-manifest.js";
+export { validateLayout } from "./validate-layout.js";
+export type { LayoutInput } from "./validate-layout.js";
 export { validateManifest } from "./validate-manifest.js";
