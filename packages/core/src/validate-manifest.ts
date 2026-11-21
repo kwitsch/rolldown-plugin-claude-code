@@ -1,4 +1,6 @@
 import type { Issue, IssueSeverity } from "./issue.js";
+import type { ManifestPath } from "./manifest-paths.js";
+import { manifestPaths } from "./manifest-paths.js";
 
 // Declaration order of PluginManifest; exported for the type test only, not from index.ts.
 export const KNOWN_FIELDS = [
@@ -132,17 +134,6 @@ const FIELD_TYPES: Record<KnownField, FieldType> = {
   experimental: OBJECT,
 };
 
-const PATH_FIELDS: ReadonlySet<KnownField> = new Set<KnownField>([
-  "types",
-  "skills",
-  "commands",
-  "agents",
-  "hooks",
-  "mcpServers",
-  "lspServers",
-  "outputStyles",
-]);
-
 const RESERVED_WORDS: ReadonlySet<string> = new Set(["claude", "anthropic", "anthropics"]);
 const RESERVED_NEXT_TO_OFFICIAL: ReadonlySet<string> = new Set(["claude", "anthropic"]);
 const RESERVED_EXACT: ReadonlySet<string> = new Set([...RESERVED_WORDS, "claude-code", "claude-mods"]);
@@ -209,36 +200,21 @@ function nameIssues(value: unknown): Issue[] {
 
 function pathProblem(field: KnownField, path: string): string | undefined {
   if (field === "skills" && path === ".") return undefined;
-  if (field === "mcpServers" && path.startsWith("https://")) return undefined;
   if (!path.startsWith("./")) return `must start with "./"`;
   if (path.split("/").includes("..")) return `must not contain a ".." segment`;
   if (field === "agents" && !path.endsWith(".md")) return `must end with ".md"`;
   return undefined;
 }
 
-function pathIssues(field: KnownField, value: unknown): Issue[] {
-  const candidates: (readonly [IssuePath, string])[] = [];
-  if (typeof value === "string") {
-    candidates.push([[field], value]);
-  } else if (Array.isArray(value)) {
-    // Inline objects in arrays are not searched.
-    for (const [index, item] of value.entries()) {
-      if (typeof item === "string") candidates.push([[field, index], item]);
-    }
-  } else if (field === "commands" && isRecord(value)) {
-    for (const [command, entry] of Object.entries(value)) {
-      const source = isRecord(entry) ? entry["source"] : undefined;
-      if (typeof source === "string") candidates.push([[field, command, "source"], source]);
-    }
-  }
+function pathIssues(paths: readonly ManifestPath[]): Issue[] {
   const issues: Issue[] = [];
-  for (const [path, candidate] of candidates) {
-    const problem = pathProblem(field, candidate);
+  for (const { field, path, value } of paths) {
+    const problem = pathProblem(field, value);
     if (problem !== undefined) {
       issues.push({
         severity: "error",
         code: "path-invalid",
-        message: `${label(path)} ${show(candidate)} ${problem}`,
+        message: `${label(path)} ${show(value)} ${problem}`,
         path,
       });
     }
@@ -250,6 +226,7 @@ export function validateManifest(manifest: object): readonly Issue[] {
   const fields = new Map<string, unknown>(Object.entries(manifest));
   const known = new Set<string>(KNOWN_FIELDS);
   const issues: Issue[] = [];
+  const paths = manifestPaths(manifest);
 
   for (const field of KNOWN_FIELDS) {
     const value = fields.get(field);
@@ -289,7 +266,7 @@ export function validateManifest(manifest: object): readonly Issue[] {
         path: ["homepage"],
       });
     }
-    if (PATH_FIELDS.has(field)) issues.push(...pathIssues(field, value));
+    issues.push(...pathIssues(paths.filter((entry) => entry.field === field)));
   }
 
   for (const key of [...fields.keys()].filter((key) => !known.has(key)).sort()) {
