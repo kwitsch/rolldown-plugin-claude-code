@@ -84,7 +84,7 @@ function normalizeRepository(value: unknown): string | "invalid" | undefined {
       .replace(/^github:/, "https://github.com/")
       .replace(/^gitlab:/, "https://gitlab.com/")
       .replace(/^bitbucket:/, "https://bitbucket.org/");
-  } else if (/^[^/\s:@]+\/[^/\s:@]+$/.test(s)) {
+  } else if (/^[^/\s:@.][^/\s:@]*\/[^/\s:@]+$/.test(s)) {
     s = `https://github.com/${s}`;
   } else {
     s = s
