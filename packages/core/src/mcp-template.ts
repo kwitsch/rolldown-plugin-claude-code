@@ -2,7 +2,7 @@ import type { BuildEntry } from "./build-entry.js";
 import type { Issue } from "./issue.js";
 import { notAnObject, rewriteCommand } from "./template-command.js";
 import type { IssuePath } from "./validate-manifest.js";
-import { isRecord, show } from "./validate-manifest.js";
+import { isRecord } from "./validate-manifest.js";
 
 export interface McpTemplateResult {
   readonly mcpJson: object | undefined;

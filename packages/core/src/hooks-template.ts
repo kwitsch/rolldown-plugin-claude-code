@@ -3,7 +3,7 @@ import type { BuildEntry } from "./build-entry.js";
 import type { Issue } from "./issue.js";
 import { invalid, isAbsolute, nameOf, notAnObject, rewriteCommand } from "./template-command.js";
 import type { IssuePath } from "./validate-manifest.js";
-import { isRecord, show } from "./validate-manifest.js";
+import { isRecord } from "./validate-manifest.js";
 
 export interface HooksTemplateResult {
   readonly hooksJson: object | undefined;
