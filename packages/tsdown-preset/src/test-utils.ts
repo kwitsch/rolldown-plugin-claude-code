@@ -1,5 +1,6 @@
 import type { LoadedProject } from "@kwitsch/rolldown-plugin-claude-code";
-import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 // Writes an outDir tree that passes validateLayout (strict): plugin.json, hooks.json and every entry output, all 0644.
@@ -19,4 +20,15 @@ export async function writeValidTree(outDir: string, project: LoadedProject, omi
     await writeFile(target, content);
     await chmod(target, 0o644);
   }
+}
+
+export const tempDir = async (): Promise<string> => realpath(await mkdtemp(join(tmpdir(), "ccp-")));
+
+export async function project(files: Record<string, string>): Promise<string> {
+  const root = await tempDir();
+  for (const [file, content] of Object.entries(files)) {
+    await mkdir(dirname(join(root, file)), { recursive: true });
+    await writeFile(join(root, file), content);
+  }
+  return root;
 }

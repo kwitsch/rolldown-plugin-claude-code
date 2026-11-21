@@ -1,23 +1,11 @@
 import type { LoadedProject } from "@kwitsch/rolldown-plugin-claude-code";
 import { loadProject } from "@kwitsch/rolldown-plugin-claude-code";
-import { chmod, mkdir, mkdtemp, readFile, realpath, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { chmod, readFile, stat, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { Mock } from "vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { finalCheck } from "./final-check.js";
-import { writeValidTree } from "./test-utils.js";
-
-const tempDir = async (): Promise<string> => realpath(await mkdtemp(join(tmpdir(), "ccp-")));
-
-async function project(files: Record<string, string>): Promise<string> {
-  const root = await tempDir();
-  for (const [file, content] of Object.entries(files)) {
-    await mkdir(dirname(join(root, file)), { recursive: true });
-    await writeFile(join(root, file), content);
-  }
-  return root;
-}
+import { project, tempDir, writeValidTree } from "./test-utils.js";
 
 const FILES: Record<string, string> = {
   "package.json": JSON.stringify({ name: "demo", version: "1.0.0" }),

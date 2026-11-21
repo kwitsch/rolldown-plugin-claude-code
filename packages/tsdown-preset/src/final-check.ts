@@ -46,7 +46,13 @@ async function runValidate(outDir: string, validate: true | "auto", logger: Pick
     await run;
   } catch (error) {
     if (!(error instanceof Error)) throw error;
-    const code = "code" in error ? error.code : undefined;
+    // promisify(execFile) rejections carry these fields.
+    const { code, stdout = "", stderr = "", killed, signal } = error as NodeJS.ErrnoException & {
+      stdout?: string;
+      stderr?: string;
+      killed?: boolean;
+      signal?: string;
+    };
     // Spawning is the only PATH check: ENOENT means claude is not installed.
     if (code === "ENOENT") {
       if (validate === "auto") {
@@ -55,15 +61,11 @@ async function runValidate(outDir: string, validate: true | "auto", logger: Pick
       }
       throw validateError("error  claude not found on PATH; validate: true requires the Claude Code CLI", []);
     }
-    const stdout = "stdout" in error && typeof error.stdout === "string" ? error.stdout : "";
-    const stderr = "stderr" in error && typeof error.stderr === "string" ? error.stderr : "";
     const output = `${stdout}\n${stderr}`.split("\n").filter((line) => line.trim() !== "");
     if (typeof code === "number") {
       throw validateError(`error  claude plugin validate --strict exited with code ${code}`, output);
     }
-    const killed = "killed" in error && error.killed === true;
-    const signal = "signal" in error && typeof error.signal === "string" ? error.signal : undefined;
-    if (killed || signal !== undefined) {
+    if (killed || signal) {
       const reason = killed ? `timed out after ${VALIDATE_TIMEOUT_MS / 1000} s` : `terminated by ${signal}`;
       throw validateError(`error  claude plugin validate --strict did not finish (${reason})`, output);
     }

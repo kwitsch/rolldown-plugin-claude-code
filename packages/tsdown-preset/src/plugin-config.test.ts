@@ -1,27 +1,15 @@
 import { claudeCode, loadProject } from "@kwitsch/rolldown-plugin-claude-code";
-import { access, mkdir, mkdtemp, realpath, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { access, stat } from "node:fs/promises";
+import { join } from "node:path";
 import type { OutExtensionContext, TsdownHooks, UserConfig } from "tsdown";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pluginConfig } from "./plugin-config.js";
-import { writeValidTree } from "./test-utils.js";
+import { project, tempDir, writeValidTree } from "./test-utils.js";
 
 vi.mock("@kwitsch/rolldown-plugin-claude-code", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@kwitsch/rolldown-plugin-claude-code")>()),
   claudeCode: vi.fn(() => ({ name: "claude-code" })),
 }));
-
-const tempDir = async (): Promise<string> => realpath(await mkdtemp(join(tmpdir(), "ccp-")));
-
-async function project(files: Record<string, string>): Promise<string> {
-  const root = await tempDir();
-  for (const [file, content] of Object.entries(files)) {
-    await mkdir(dirname(join(root, file)), { recursive: true });
-    await writeFile(join(root, file), content);
-  }
-  return root;
-}
 
 const PKG = JSON.stringify({ name: "demo", version: "1.0.0" });
 const command = (path: string): object => [{ hooks: [{ type: "command", command: path }] }];
