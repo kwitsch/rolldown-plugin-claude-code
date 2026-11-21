@@ -3,5 +3,5 @@
   "plugins": ["typescript"],
   "categories": { "correctness": "error" },
   "rules": { "typescript/no-explicit-any": "error" },
-  "ignorePatterns": ["**/dist"]
+  "ignorePatterns": ["**/dist", "fixtures/*/expected", "fixtures/*/plugin"]
 }

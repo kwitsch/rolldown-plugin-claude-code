@@ -1,0 +1,4 @@
+{
+  "mod": "./src/register.ts",
+  "hooks": {}
+}

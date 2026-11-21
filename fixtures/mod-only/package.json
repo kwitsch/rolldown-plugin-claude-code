@@ -1,0 +1,18 @@
+{
+  "name": "@fixtures/mod-only",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fixture: a plugin with one mod, built with rolldown directly.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "rolldown -c rolldown.config.ts",
+    "test": "diff -r expected plugin"
+  },
+  "dependencies": {
+    "@kwitsch/rolldown-plugin-claude-code": "workspace:*"
+  },
+  "devDependencies": {
+    "rolldown": "catalog:"
+  }
+}

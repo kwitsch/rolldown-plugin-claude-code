@@ -1,0 +1,6 @@
+{
+  "modules": [
+    "./register.js"
+  ],
+  "hooks": {}
+}

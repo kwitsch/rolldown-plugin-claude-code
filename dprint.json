@@ -1,5 +1,5 @@
 {
-  "excludes": ["**/node_modules", "**/dist", "pnpm-lock.yaml"],
+  "excludes": ["**/node_modules", "**/dist", "pnpm-lock.yaml", "fixtures/*/expected", "fixtures/*/plugin"],
   "plugins": [
     "npm:@dprint/typescript@0.101.0",
     "npm:@dprint/json@0.26.0",
