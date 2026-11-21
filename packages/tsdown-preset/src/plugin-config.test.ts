@@ -96,6 +96,12 @@ describe("config generation", () => {
     );
     await expect(access(join(root, "package.json"))).resolves.toBeUndefined();
   });
+
+  it("refuses an outDir that holds the sources", async () => {
+    const root = await project(MOD_ONLY);
+    await expect(pluginConfig({ root, ...TEMPLATE, outDir: "src" })).rejects.toThrow(/must not contain/);
+    await expect(access(join(root, "src/register.ts"))).resolves.toBeUndefined();
+  });
 });
 
 describe("minify matrix", () => {

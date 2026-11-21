@@ -31,11 +31,14 @@ export async function pluginConfig(options: PresetOptions = {}): Promise<UserCon
   }
 
   const out = resolve(project.root, outDir);
-  const rel = relative(out, project.root);
-  // Data-loss guard: rm below must never remove the project root or one of its ancestors.
-  const containsRoot = !(rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel));
-  if (containsRoot) {
-    throw new Error(formatProblems([`error  outDir "${outDir}" must not contain the project root`]));
+  // Data-loss guard: rm below must never remove the project root, an ancestor, or a directory holding a source.
+  const protectedPaths = [project.root, ...project.entries.map((entry) => entry.sourcePath)];
+  const contains = (path: string): boolean => {
+    const rel = relative(out, path);
+    return !(rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel));
+  };
+  if (protectedPaths.some(contains)) {
+    throw new Error(formatProblems([`error  outDir "${outDir}" must not contain the project root or its sources`]));
   }
   await rm(out, { recursive: true, force: true });
 
