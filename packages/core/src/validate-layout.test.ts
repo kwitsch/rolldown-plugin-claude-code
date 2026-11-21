@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
-import type { HookEntry, Issue, IssueCode, PluginManifest } from "./index.js";
+import type { BuildEntry, Issue, IssueCode, PluginManifest } from "./index.js";
 import { validateLayout } from "./index.js";
 
 type IssuePath = readonly (string | number)[];
@@ -19,8 +19,8 @@ const issue = (code: IssueCode, message: string, file: string, path?: IssuePath)
 
 const PLUGIN_JSON = ".claude-plugin/plugin.json";
 const HOOKS_JSON = "hooks/hooks.json";
-const MOD: HookEntry = { kind: "mod", source: "register.ts", output: "hooks/register.js" };
-const SCRIPT: HookEntry = { kind: "script", source: "pre-tool.ts", output: "hooks/pre-tool.mjs" };
+const MOD: BuildEntry = { kind: "mod", source: "register.ts", output: "hooks/register.js" };
+const SCRIPT: BuildEntry = { kind: "script", source: "pre-tool.ts", output: "hooks/pre-tool.mjs" };
 
 const pluginJsonMissing: Issue = issue(
   "path-missing",
@@ -29,7 +29,7 @@ const pluginJsonMissing: Issue = issue(
 );
 const hooksJsonMissing: Issue = issue("path-missing", `"hooks/hooks.json" is missing or not a file`, HOOKS_JSON);
 
-const entryMissing = (entry: HookEntry): Issue =>
+const entryMissing = (entry: BuildEntry): Issue =>
   issue(
     "path-missing",
     `${JSON.stringify(entry.output)} built from ${JSON.stringify(entry.source)} is missing or not a file`,
@@ -71,7 +71,7 @@ const build = async (files: readonly string[]): Promise<void> => {
   }
 };
 
-const check = (manifest: ManifestFields, entries?: readonly HookEntry[]): Promise<readonly Issue[]> =>
+const check = (manifest: ManifestFields, entries?: readonly BuildEntry[]): Promise<readonly Issue[]> =>
   validateLayout({ outDir: dir, manifest: { name: "demo", ...manifest }, entries });
 
 // Valid layout

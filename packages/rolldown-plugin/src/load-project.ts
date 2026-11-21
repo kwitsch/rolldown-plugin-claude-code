@@ -1,4 +1,4 @@
-import type { HookEntry, Issue, PackageJson, PluginConfig, PluginManifest } from "@kwitsch/claude-code-plugin-core";
+import type { BuildEntry, Issue, PackageJson, PluginConfig, PluginManifest } from "@kwitsch/claude-code-plugin-core";
 import { pluginManifest, renderHooksTemplate, validateManifest } from "@kwitsch/claude-code-plugin-core";
 import { access, readdir, readFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -7,7 +7,7 @@ export interface ProjectOptions extends PluginConfig {
   readonly root?: string;
 }
 
-export interface ResolvedEntry extends HookEntry {
+export interface ResolvedEntry extends BuildEntry {
   readonly sourcePath: string;
 }
 

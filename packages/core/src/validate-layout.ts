@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
 import { join, posix } from "node:path";
-import type { HookEntry } from "./hooks-template.js";
+import type { BuildEntry } from "./build-entry.js";
 import type { Issue } from "./issue.js";
 import type { ManifestPath } from "./manifest-paths.js";
 import { manifestPaths } from "./manifest-paths.js";
@@ -10,7 +10,7 @@ import { label, show } from "./validate-manifest.js";
 export interface LayoutInput {
   readonly outDir: string;
   readonly manifest: PluginManifest;
-  readonly entries?: readonly HookEntry[];
+  readonly entries?: readonly BuildEntry[];
 }
 
 type Kind = "file" | "directory";
