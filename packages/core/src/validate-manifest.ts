@@ -142,9 +142,9 @@ const PATH_FIELDS: ReadonlySet<KnownField> = new Set<KnownField>([
   "outputStyles",
 ]);
 
-const RESERVED_EXACT: readonly string[] = ["claude", "anthropic", "anthropics", "claude-code", "claude-mods"];
-const RESERVED_NEXT_TO_OFFICIAL: ReadonlySet<string> = new Set(["claude", "anthropic"]);
 const RESERVED_WORDS: ReadonlySet<string> = new Set(["claude", "anthropic", "anthropics"]);
+const RESERVED_NEXT_TO_OFFICIAL: ReadonlySet<string> = new Set(["claude", "anthropic"]);
+const RESERVED_EXACT: ReadonlySet<string> = new Set([...RESERVED_WORDS, "claude-code", "claude-mods"]);
 
 function reservedSeverity(name: string): IssueSeverity | undefined {
   // Case-insensitive; any run of separators counts as one separator.
@@ -152,7 +152,7 @@ function reservedSeverity(name: string): IssueSeverity | undefined {
   const joined = words.join("-");
   if (
     /^(claude|anthropics?|cc-plugin)-/.test(joined)
-    || RESERVED_EXACT.includes(joined)
+    || RESERVED_EXACT.has(joined)
     || words.some((word, index) =>
       word === "official"
       && (RESERVED_NEXT_TO_OFFICIAL.has(words[index - 1] ?? "")
@@ -193,18 +193,13 @@ function nameIssues(value: unknown): Issue[] {
     });
   }
   const reserved = reservedSeverity(value);
-  if (reserved === "error") {
+  if (reserved !== undefined) {
     issues.push({
-      severity: "error",
+      severity: reserved,
       code: "name-reserved",
-      message: `name ${show(value)} is reserved for official Anthropic plugins`,
-      path: ["name"],
-    });
-  } else if (reserved === "warning") {
-    issues.push({
-      severity: "warning",
-      code: "name-reserved",
-      message: `name ${show(value)} contains a reserved word ("claude", "anthropic" or "anthropics")`,
+      message: reserved === "error"
+        ? `name ${show(value)} is reserved for official Anthropic plugins`
+        : `name ${show(value)} contains a reserved word ("claude", "anthropic" or "anthropics")`,
       path: ["name"],
     });
   }
@@ -212,6 +207,8 @@ function nameIssues(value: unknown): Issue[] {
 }
 
 function pathProblem(field: KnownField, path: string): string | undefined {
+  if (field === "skills" && path === ".") return undefined;
+  if (field === "mcpServers" && path.startsWith("https://")) return undefined;
   if (!path.startsWith("./")) return `must start with "./"`;
   if (path.split("/").includes("..")) return `must not contain a ".." segment`;
   if (field === "agents" && !path.endsWith(".md")) return `must end with ".md"`;
@@ -235,8 +232,6 @@ function pathIssues(field: KnownField, value: unknown): Issue[] {
   }
   const issues: Issue[] = [];
   for (const [path, candidate] of candidates) {
-    if (field === "skills" && candidate === ".") continue;
-    if (field === "mcpServers" && candidate.startsWith("https://")) continue;
     const problem = pathProblem(field, candidate);
     if (problem !== undefined) {
       issues.push({
