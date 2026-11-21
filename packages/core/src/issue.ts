@@ -10,8 +10,8 @@ export const ISSUE_CODES = [
   "field-unknown",
   "path-invalid",
   "path-missing",
-  "placeholder-unknown",
-  "entry-unused",
+  "template-invalid",
+  "entry-conflict",
   "field-type",
 ] as const;
 

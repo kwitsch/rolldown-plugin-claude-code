@@ -34,22 +34,23 @@ it("Issue codes are exactly ISSUE_CODES, unique and kebab-case", () => {
     | "field-unknown"
     | "path-invalid"
     | "path-missing"
-    | "placeholder-unknown"
-    | "entry-unused"
+    | "template-invalid"
+    | "entry-conflict"
     | "field-type"
   >();
   expect(new Set(ISSUE_CODES).size).toBe(ISSUE_CODES.length);
   for (const code of ISSUE_CODES) expect(code).toMatch(/^[a-z]+(-[a-z]+)*$/);
 });
 
-it("PluginConfig accepts mod, scripts and hooksTemplate and rejects invalid ones", () => {
+it("PluginConfig accepts hooksTemplate and manifest and rejects removed fields", () => {
   expectTypeOf<{
-    mod: "src/mods/register.ts";
-    scripts: ["src/scripts/pre-tool.ts"];
     hooksTemplate: "hooks.template.json";
+    manifest: { displayName: "Graphmind Helper" };
   }>().toExtend<PluginConfig>();
   // @ts-expect-error
-  accepts<PluginConfig>({ mod: "src/mods/register.ts", mods: ["a.ts"] });
+  accepts<PluginConfig>({ mod: "src/mods/register.ts" });
   // @ts-expect-error
-  accepts<PluginConfig>({ mod: ["src/mods/register.ts"] });
+  accepts<PluginConfig>({ scripts: ["src/scripts/pre-tool.ts"] });
+  // @ts-expect-error
+  accepts<PluginConfig>({ hooksTemplate: ["hooks.template.json"] });
 });
