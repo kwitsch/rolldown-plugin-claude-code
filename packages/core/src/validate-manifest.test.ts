@@ -107,7 +107,7 @@ it("checks the shape of name", () => {
     "a:b",
     "a\\b",
     "deploy\u0007",
-    "deploy‮tools",
+    "deploy\u202Etools",
     "deploy+tools",
     "-deploy",
   ];
