@@ -12,6 +12,7 @@ export const ISSUE_CODES = [
   "path-missing",
   "placeholder-unknown",
   "entry-unused",
+  "field-type",
 ] as const;
 
 export type IssueCode = (typeof ISSUE_CODES)[number];
