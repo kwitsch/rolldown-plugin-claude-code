@@ -44,6 +44,11 @@ const MANIFEST_KEYS = {
 
 const str = (value: unknown): string | undefined => typeof value === "string" && value !== "" ? value : undefined;
 
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const trimmed = (value: unknown): string | undefined => typeof value === "string" ? value.trim() : undefined;
+
 const show = (value: unknown): string => String(JSON.stringify(value));
 
 function parseAuthor(value: unknown): PluginAuthor | "invalid" | undefined {
@@ -55,11 +60,10 @@ function parseAuthor(value: unknown): PluginAuthor | "invalid" | undefined {
     name = (/^[^<(]*/.exec(value)?.[0] ?? "").trim();
     email = /<([^>]*)>/.exec(value)?.[1]?.trim();
     url = /\(([^)]*)\)/.exec(value)?.[1]?.trim();
-  } else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-    const author = value as Readonly<Record<string, unknown>>;
-    name = typeof author["name"] === "string" ? author["name"].trim() : "";
-    email = typeof author["email"] === "string" ? author["email"].trim() : undefined;
-    url = typeof author["url"] === "string" ? author["url"].trim() : undefined;
+  } else if (isRecord(value)) {
+    name = trimmed(value["name"]) ?? "";
+    email = trimmed(value["email"]);
+    url = trimmed(value["url"]);
   } else {
     return undefined;
   }
@@ -72,8 +76,8 @@ function normalizeRepository(value: unknown): string | "invalid" | undefined {
   if (typeof value === "string") {
     s = value.trim();
     if (s === "") return undefined;
-  } else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-    const url = (value as Readonly<Record<string, unknown>>)["url"];
+  } else if (isRecord(value)) {
+    const url = value["url"];
     if (typeof url !== "string" || url === "") return "invalid";
     s = url.trim();
   } else {
@@ -94,9 +98,12 @@ function normalizeRepository(value: unknown): string | "invalid" | undefined {
       .replace(/^[^@/\s]+@([^:/\s]+):(?!\/)(.+)$/, "https://$1/$2");
   }
   s = s.replace(/\.git$/, "");
-  if (!URL.canParse(s)) return "invalid";
-  const protocol = new URL(s).protocol;
-  return protocol === "https:" || protocol === "http:" ? s : "invalid";
+  try {
+    const protocol = new URL(s).protocol;
+    return protocol === "https:" || protocol === "http:" ? s : "invalid";
+  } catch {
+    return "invalid";
+  }
 }
 
 export function pluginManifest(pkg: PackageJson, overrides?: Partial<PluginManifest>): ManifestResult {
@@ -159,8 +166,11 @@ export function pluginManifest(pkg: PackageJson, overrides?: Partial<PluginManif
 
   // Known keys in declaration order first, then runtime-only override keys in insertion order.
   const ordered: Record<string, unknown> = {};
-  for (const key of [...Object.keys(MANIFEST_KEYS), ...Object.keys(mapped)]) {
-    if (Object.hasOwn(mapped, key) && !Object.hasOwn(ordered, key)) ordered[key] = mapped[key];
+  for (const key of Object.keys(MANIFEST_KEYS)) {
+    if (Object.hasOwn(mapped, key)) ordered[key] = mapped[key];
+  }
+  for (const key of Object.keys(mapped)) {
+    if (!Object.hasOwn(ordered, key)) ordered[key] = mapped[key];
   }
 
   if (ordered["name"] === undefined) return { manifest: undefined, issues };
