@@ -56,7 +56,7 @@ export function validatePlugin(dir: string): { readonly status: number; readonly
   try {
     parsed = JSON.parse(stdout);
   } catch {
-    throw new Error(`unexpected validate report shape:\n${stdout}`);
+    // Left undefined: the guard below reports it.
   }
   // A changed report format must fail loudly: detecting drift is the point.
   if (!isValidateReport(parsed)) throw new Error(`unexpected validate report shape:\n${stdout}`);
