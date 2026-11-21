@@ -172,7 +172,7 @@ it("applies overrides flat, ignores undefined values and suppresses issues of ov
   ).toEqual({ name: "x", description: "mapped", author: { name: "Ada Example" }, keywords: ["c"] });
 
   const example = pluginManifest(
-    { name: "@kwitsch/graphmind-helper", version: "0.2.4", author: "<nur@mail.example>" },
+    { name: "@kwitsch/graphmind-helper", version: "0.2.4", author: "<only@mail.example>" },
     { displayName: "Graphmind Helper", author: { name: "Ada Example" } },
   );
   expect(example).toEqual({
