@@ -1,0 +1,9 @@
+{
+  "name": "mcp-server",
+  "version": "0.0.0",
+  "description": "Fixture: a plugin with one MCP server built from TypeScript with the official SDK, built with tsdown and the preset.",
+  "author": {
+    "name": "Kwitsch"
+  },
+  "license": "MIT"
+}

@@ -4,6 +4,7 @@ packages:
   - e2e
 
 catalog:
+  "@modelcontextprotocol/sdk": 1.32.2
   "@types/node": 26.6.6
   rolldown: 1.3.3
   tsdown: 0.23.7
