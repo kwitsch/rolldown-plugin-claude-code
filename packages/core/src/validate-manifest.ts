@@ -49,7 +49,14 @@ const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
 const isStringArray = (value: unknown): value is readonly string[] =>
   Array.isArray(value) && value.every((item) => typeof item === "string");
 
-const show = (value: unknown): string => String(JSON.stringify(value));
+const show = (value: unknown): string => {
+  try {
+    return String(JSON.stringify(value));
+  } catch {
+    // JSON.stringify throws on BigInt and circular values; keep validateManifest total.
+    return typeof value === "bigint" ? `${value}n` : Object.prototype.toString.call(value);
+  }
+};
 
 // ["agents", 1] -> "agents[1]", ["commands", "deploy", "source"] -> "commands.deploy.source"
 const label = (path: IssuePath): string =>

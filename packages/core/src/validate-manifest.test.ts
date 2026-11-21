@@ -257,3 +257,16 @@ it("does not mutate or throw on a frozen input", () => {
   expect(issues.length).toBeGreaterThan(0);
   expect(manifest).toEqual(before);
 });
+
+it("never throws while showing BigInt and circular values", () => {
+  const circular: Record<string, unknown> = {};
+  circular["self"] = circular;
+  expect(validateManifest({ name: 1n })).toEqual([nameMissing("1n")]);
+  expect(validateManifest({ name: NAME, version: 1n })).toEqual([
+    issue("error", "field-type", "version 1n must be a string", ["version"]),
+  ]);
+  expect(validateManifest({ name: NAME, version: circular })).toEqual([
+    issue("error", "field-type", "version [object Object] must be a string", ["version"]),
+  ]);
+  expect(validateManifest({ name: NAME, author: { name: 1n } })).toEqual([authorInvalid("1n")]);
+});
