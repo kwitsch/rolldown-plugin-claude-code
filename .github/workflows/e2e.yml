@@ -46,7 +46,9 @@ jobs:
         run: |
           {
             echo "failed<<EOF"
-            jq -r '.testResults[].assertionResults[] | select(.status == "failed") | "- " + .fullName' e2e/report.json || true
+            if [ -f e2e/report.json ]; then
+              jq -r '.testResults[].assertionResults[] | select(.status == "failed") | "- " + .fullName' e2e/report.json || true
+            fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 

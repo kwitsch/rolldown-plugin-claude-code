@@ -31,9 +31,10 @@ export function runClaude(args: readonly string[], env?: NodeJS.ProcessEnv, time
         "claude not found on PATH; install Claude Code (https://code.claude.com/docs/en/setup) to run test:e2e",
       );
     }
-    throw result.error;
+    // Timeout (ETIMEDOUT) falls through with status null so callers can report stderr.
+    if (!("code" in result.error && result.error.code === "ETIMEDOUT")) throw result.error;
   }
-  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+  return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
 
 function isValidateReport(value: unknown): value is ValidateReport {
@@ -68,7 +69,9 @@ export function fixturePlugin(name: string): string {
 
 // vitest globalSetup: runs once per run, aborts (not skips) when claude is missing.
 export default function setup(): void {
-  const line = runClaude(["--version"]).stdout.trim();
+  const { status, stdout, stderr } = runClaude(["--version"]);
+  if (status !== 0) throw new Error(`claude --version failed with status ${status}:\n${stderr}`);
+  const line = stdout.trim();
   console.log(`Claude Code version: ${line}`);
   const summary = process.env.GITHUB_STEP_SUMMARY;
   if (summary) appendFileSync(summary, `**Claude Code version:** ${line}\n`);
