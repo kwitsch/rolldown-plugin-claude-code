@@ -37,31 +37,29 @@ function expectedKind({ field, path }: ManifestPath): Kind | "either" {
 // "./agents/reviewer.md" -> "agents/reviewer.md", "./extra-skills/" -> "extra-skills", "." stays "."
 const relativeFile = (value: string): string => posix.normalize(value.replaceAll("\\", "/")).replace(/(.)\/$/, "$1");
 
+const err = (code: Issue["code"], message: string, file: string, path?: Issue["path"]): Issue => ({
+  severity: "error",
+  code,
+  message,
+  ...(path && { path }),
+  file,
+});
+
 export async function validateLayout(input: LayoutInput): Promise<readonly Issue[]> {
   const { outDir, manifest, entries = [] } = input;
   const root = await kindOf(outDir);
   if (root === undefined) {
-    return [{
-      severity: "error",
-      code: "path-missing",
-      message: `outDir ${show(outDir)} does not exist`,
-      file: outDir,
-    }];
+    return [err("path-missing", `outDir ${show(outDir)} does not exist`, outDir)];
   }
   if (root === "file") {
-    return [{
-      severity: "error",
-      code: "path-invalid",
-      message: `outDir ${show(outDir)} must be a directory, found a file`,
-      file: outDir,
-    }];
+    return [err("path-invalid", `outDir ${show(outDir)} must be a directory, found a file`, outDir)];
   }
 
   const issues: Issue[] = [];
   // Anything that is not an existing file (missing or a directory) is path-missing.
   const requireFile = async (file: string, message: string): Promise<void> => {
     if ((await kindOf(join(outDir, file))) !== "file") {
-      issues.push({ severity: "error", code: "path-missing", message, file });
+      issues.push(err("path-missing", message, file));
     }
   };
 
@@ -76,21 +74,11 @@ export async function validateLayout(input: LayoutInput): Promise<readonly Issue
     const actual = await kindOf(join(outDir, file));
     const expected = expectedKind(item);
     if (actual === undefined) {
-      issues.push({
-        severity: "error",
-        code: "path-missing",
-        message: `${label(path)} ${show(value)} does not exist`,
-        path,
-        file,
-      });
+      issues.push(err("path-missing", `${label(path)} ${show(value)} does not exist`, file, path));
     } else if (expected !== "either" && actual !== expected) {
-      issues.push({
-        severity: "error",
-        code: "path-invalid",
-        message: `${label(path)} ${show(value)} must be a ${expected}, found a ${actual}`,
-        path,
-        file,
-      });
+      issues.push(
+        err("path-invalid", `${label(path)} ${show(value)} must be a ${expected}, found a ${actual}`, file, path),
+      );
     }
   }
 
