@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { claudeCode, loadProject } from "./index.js";
+import { claudeCode, formatProblems, issueLine, loadProject } from "./index.js";
 
 it("exports claudeCode and loadProject", () => {
   expect(typeof claudeCode).toBe("function");
@@ -8,4 +8,11 @@ it("exports claudeCode and loadProject", () => {
 
 it("claudeCode uses only buildStart, generateBundle and writeBundle", () => {
   expect(Object.keys(claudeCode()).sort()).toEqual(["buildStart", "generateBundle", "name", "writeBundle"]);
+});
+
+it("exports the collected issue format", () => {
+  expect(formatProblems(["error  a", "error  b"])).toBe("[claude-code] 2 problems\n  error  a\n  error  b");
+  expect(issueLine({ severity: "error", code: "path-missing", message: "m", file: "f" }, 12)).toBe(
+    "error    path-missing  f: m",
+  );
 });

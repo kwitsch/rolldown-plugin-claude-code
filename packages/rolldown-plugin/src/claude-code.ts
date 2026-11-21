@@ -18,13 +18,13 @@ interface ChunkCheck {
   readonly entry: ResolvedEntry | undefined;
 }
 
-function formatProblems(lines: readonly string[]): string {
+export function formatProblems(lines: readonly string[]): string {
   const count = `${lines.length} ${lines.length === 1 ? "problem" : "problems"}`;
   return `[claude-code] ${count}\n${lines.map((line) => `  ${line}`).join("\n")}`;
 }
 
 // Severity column padded to "warning".length, code column to the widest code in the batch.
-const issueLine = (issue: Issue, codeWidth: number): string =>
+export const issueLine = (issue: Issue, codeWidth: number): string =>
   `${issue.severity.padEnd(7)}  ${issue.code.padEnd(codeWidth)}  ${
     issue.file ? `${issue.file}: ` : ""
   }${issue.message}`;
