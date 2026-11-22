@@ -1,6 +1,6 @@
 {
   "name": "@kwitsch/tsdown-preset-claude-code",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "tsdown preset for building Claude Code plugins.",
   "keywords": ["claude-code", "claude-code-plugin", "tsdown", "rolldown"],
   "repository": {
