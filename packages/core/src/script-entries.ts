@@ -53,7 +53,7 @@ export function scriptEntries(config: {
       issues.push(invalid(["skillScripts"], skillScripts, "must be an object", "field-type"));
     } else {
       for (const [skill, list] of Object.entries(skillScripts)) {
-        if (skill === "" || skill === "." || skill === ".." || /[/\\]/.test(skill)) {
+        if (/^\.{0,2}$|[/\\]/.test(skill)) {
           issues.push(
             invalid(
               ["skillScripts", skill],
