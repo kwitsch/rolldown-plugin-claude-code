@@ -95,7 +95,12 @@ The packages are published to GitHub Packages. Add an `.npmrc` to your project:
 
 ```ini
 @kwitsch:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+Store the token in your user-level configuration, not in the project (pnpm 11 ignores credentials in a project `.npmrc`):
+
+```sh
+pnpm config set "//npm.pkg.github.com/:_authToken" "$GITHUB_TOKEN"
 ```
 
 Then install the preset together with tsdown:
@@ -104,7 +109,7 @@ Then install the preset together with tsdown:
 pnpm add -D @kwitsch/tsdown-preset-claude-code tsdown
 ```
 
-- **Token:** GitHub Packages requires a personal access token (classic) with the `read:packages` scope, even for public packages (see [Working with the npm registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry)). Keep it in the `GITHUB_TOKEN` environment variable, never in the `.npmrc` itself. Locally this is your personal token; it only shares its name with the token of GitHub Actions.
+- **Token:** GitHub Packages requires a personal access token (classic) with the `read:packages` scope, even for public packages (see [Working with the npm registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry)). Keep it out of the project; the command above writes it to your user-level config. In GitHub Actions run that command with the workflow's `GITHUB_TOKEN`; locally use your personal token.
 - **Which package:** use the preset `@kwitsch/tsdown-preset-claude-code` with tsdown, the plugin `@kwitsch/rolldown-plugin-claude-code` alone to use Rolldown directly, and the core `@kwitsch/claude-code-plugin-core` only for your own tooling.
 - **Compatibility:** Node 26 or newer, tsdown `~0.23.7`, Rolldown `^1.3.0`. Claude Code is checked nightly against its latest release.
 - **pnpm 11:** the default `minimumReleaseAge` (1 day) delays installing a fresh release; add `minimumReleaseAgeExclude: ["@kwitsch/*"]` to your `pnpm-workspace.yaml` to install it immediately.
