@@ -93,7 +93,7 @@ The `SKILL.md` stays hand-written in `assets/skills/<skill>/SKILL.md` and calls 
 
 The packages are published to GitHub Packages. Add an `.npmrc` to your project:
 
-```
+```ini
 @kwitsch:registry=https://npm.pkg.github.com
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
