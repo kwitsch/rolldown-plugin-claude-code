@@ -1,5 +1,13 @@
 # @kwitsch/rolldown-plugin-claude-code
 
+## 0.1.2
+
+### Patch Changes
+
+- 056ceb6: Releases are published through npm trusted publishing with provenance; the package READMEs now say so. No code changes.
+- Updated dependencies [056ceb6]
+  - @kwitsch/claude-code-plugin-core@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes
