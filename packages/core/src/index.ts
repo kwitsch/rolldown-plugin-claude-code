@@ -10,6 +10,8 @@ export type { McpTemplateResult } from "./mcp-template.js";
 export type { PackageAuthor, PackageJson, PackageRepository } from "./package-json.js";
 export type { PluginConfig } from "./plugin-config.js";
 export type { PluginAuthor, PluginDependency, PluginManifest } from "./plugin-manifest.js";
+export { scriptEntries } from "./script-entries.js";
+export type { ScriptEntriesResult } from "./script-entries.js";
 export { validateLayout } from "./validate-layout.js";
 export type { LayoutInput } from "./validate-layout.js";
 export { validateManifest } from "./validate-manifest.js";

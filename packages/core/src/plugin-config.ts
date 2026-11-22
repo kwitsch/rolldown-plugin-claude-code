@@ -5,4 +5,6 @@ export interface PluginConfig {
   readonly mcpTemplate?: string;
   readonly manifest?: Partial<PluginManifest>;
   readonly assets?: string;
+  readonly bin?: readonly string[];
+  readonly skillScripts?: Readonly<Record<string, readonly string[]>>;
 }

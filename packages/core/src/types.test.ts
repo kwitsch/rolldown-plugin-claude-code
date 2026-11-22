@@ -37,12 +37,13 @@ it("Issue codes are exactly ISSUE_CODES, unique and kebab-case", () => {
     | "template-invalid"
     | "entry-conflict"
     | "field-type"
+    | "entry-unused"
   >();
   expect(new Set(ISSUE_CODES).size).toBe(ISSUE_CODES.length);
   for (const code of ISSUE_CODES) expect(code).toMatch(/^[a-z]+(-[a-z]+)*$/);
 });
 
-it("PluginConfig accepts hooksTemplate, mcpTemplate, manifest and assets and rejects removed fields", () => {
+it("PluginConfig accepts hooksTemplate, mcpTemplate, manifest, assets, bin and skillScripts and rejects removed fields", () => {
   expectTypeOf<{
     hooksTemplate: "hooks.template.json";
     mcpTemplate: "mcp.template.json";
@@ -50,6 +51,8 @@ it("PluginConfig accepts hooksTemplate, mcpTemplate, manifest and assets and rej
     assets: "assets";
   }>().toExtend<PluginConfig>();
   accepts<PluginConfig>({ mcpTemplate: "mcp.template.json" });
+  accepts<PluginConfig>({ bin: ["src/bin/doctor.ts"] });
+  accepts<PluginConfig>({ skillScripts: { dprint: ["src/skills/dprint/run-dprint.ts"] } });
   // @ts-expect-error
   accepts<PluginConfig>({ mod: "src/mods/register.ts" });
   // @ts-expect-error
@@ -60,4 +63,8 @@ it("PluginConfig accepts hooksTemplate, mcpTemplate, manifest and assets and rej
   accepts<PluginConfig>({ mcpTemplate: ["mcp.template.json"] });
   // @ts-expect-error
   accepts<PluginConfig>({ assets: ["assets"] });
+  // @ts-expect-error
+  accepts<PluginConfig>({ bin: "src/bin/doctor.ts" });
+  // @ts-expect-error
+  accepts<PluginConfig>({ skillScripts: ["src/skills/dprint/run-dprint.ts"] });
 });

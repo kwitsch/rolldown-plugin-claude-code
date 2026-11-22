@@ -13,6 +13,7 @@ export const ISSUE_CODES = [
   "template-invalid",
   "entry-conflict",
   "field-type",
+  "entry-unused",
 ] as const;
 
 export type IssueCode = (typeof ISSUE_CODES)[number];

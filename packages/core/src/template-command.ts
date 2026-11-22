@@ -1,6 +1,6 @@
 import { posix } from "node:path";
 import type { BuildEntry } from "./build-entry.js";
-import type { Issue } from "./issue.js";
+import type { Issue, IssueCode } from "./issue.js";
 import type { IssuePath } from "./validate-manifest.js";
 import { isStringArray, label, show } from "./validate-manifest.js";
 
@@ -12,9 +12,14 @@ export const isAbsolute = (path: string): boolean => /^([/\\~$]|[A-Za-z]:)/.test
 // "../src/pre-tool.hook.ts" -> "pre-tool.hook"
 export const nameOf = (source: string): string => posix.basename(source, posix.extname(source));
 
-export const invalid = (path: IssuePath, value: unknown, reason: string): Issue => ({
+export const invalid = (
+  path: IssuePath,
+  value: unknown,
+  reason: string,
+  code: IssueCode = "template-invalid",
+): Issue => ({
   severity: "error",
-  code: "template-invalid",
+  code,
   message: `${label(path)} ${show(value)}: ${reason}`,
   path,
 });
@@ -27,9 +32,10 @@ export const notAnObject = (template: unknown): { readonly issues: readonly Issu
   }],
 });
 
-// Output directories of built scripts, shared with the layout check.
-export const OUTPUT_DIRS = { hooks: "hooks", mcp: "mcp" } as const;
-export type OutputDir = keyof typeof OUTPUT_DIRS;
+// Output directories of built scripts, shared with the layout check and scriptEntries.
+export const OUTPUT_DIRS = { hooks: "hooks", mcp: "mcp", bin: "bin", skills: "skills" } as const;
+// Template commands are built only into hooks/ and mcp/.
+export type OutputDir = "hooks" | "mcp";
 
 // Shared by the hooks and MCP templates: a relative TypeScript command becomes node + the built <outputDir>/<name>.mjs.
 export function rewriteCommand(
