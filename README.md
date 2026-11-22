@@ -102,6 +102,15 @@ pnpm format:check
 
 Installation instructions (GitHub Packages) follow with the first release.
 
+## Releases
+
+Releases use [Changesets](https://github.com/changesets/changesets). The three packages form a fixed group and always share one version.
+
+- Every pull request that changes a file in `packages/*` needs a changeset: run `pnpm changeset` and commit the generated file. CI checks this with `pnpm changeset status`.
+- Changes that need no release (tests, internal refactors, package docs) get an empty changeset: `pnpm changeset --empty`.
+- After a merge to `main`, the `release` workflow opens or updates the "Version Packages" pull request with the bumped versions and changelogs.
+- Merging that pull request publishes all three packages to GitHub Packages with the same version, pushes one git tag per package and creates one GitHub release per package.
+
 ## License
 
 MIT

@@ -10,9 +10,13 @@
     "typecheck": "pnpm -r typecheck",
     "format": "dprint fmt",
     "format:check": "dprint check",
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm --filter \"./packages/*\" build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "3.0.3",
     "dprint": "0.65.0",
     "oxlint": "1.94.0"
   },
