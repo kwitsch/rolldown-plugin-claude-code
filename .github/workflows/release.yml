@@ -33,8 +33,7 @@ jobs:
         with:
           node-version: 26
           cache: pnpm
-          registry-url: https://registry.npmjs.org
-      # Trusted publishing needs npm 11.5.1 or newer; the log shows which version Node 26 ships.
+      # Trusted publishing (OIDC, no token) needs npm 11.5.1 or newer; the log shows which version Node 26 ships.
       - run: npm --version
       - run: pnpm install --frozen-lockfile
       - id: changesets
@@ -43,10 +42,6 @@ jobs:
           github-token: ${{ steps.app-token.outputs.token }}
           version-script: pnpm version-packages
           publish-script: pnpm release
-        env:
-          # Stage 1: a short-lived granular token publishes the first version; trusted publishing replaces it.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
-          NPM_CONFIG_PROVENANCE: "true"
 
   verify-install:
     needs: release
@@ -78,9 +73,9 @@ jobs:
             tsdown: "$(catalog tsdown)"
           EOF
           cd "$C"
-          for i in 1 2 3 4 5; do
+          for i in 1 2 3 4 5 6 7 8 9 10; do
             pnpm add -D "@kwitsch/tsdown-preset-claude-code@$V" "tsdown@$(catalog tsdown)" && break
-            if [ "$i" = 5 ]; then echo "Install failed after 5 attempts"; exit 1; fi
+            if [ "$i" = 10 ]; then echo "Install failed after 10 attempts"; exit 1; fi
             echo "Attempt $i failed; the registry may not serve $V yet. Retrying in 30 s."
             sleep 30
           done
