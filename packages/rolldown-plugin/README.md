@@ -8,4 +8,4 @@ Rolldown plugin that builds Claude Code plugins.
 pnpm add -D @kwitsch/rolldown-plugin-claude-code rolldown
 ```
 
-The package is published to GitHub Packages and needs the `.npmrc` setup described in the [project README](https://github.com/kwitsch/rolldown-plugin-claude-code#readme).
+See the [project README](https://github.com/kwitsch/rolldown-plugin-claude-code#readme) for compatibility and usage.
