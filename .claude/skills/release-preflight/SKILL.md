@@ -5,11 +5,11 @@ description: Check, read-only, what a push or merge to main would trigger in the
 
 # release-preflight
 
-Background: `release.yml` runs on every push to `main` and is live whenever the repository variable `RELEASE_APP_CLIENT_ID` exists. With no pending changeset, `changeset publish` publishes any version missing from the registry. This once published 0.0.0 by accident. Never rely on an earlier check; run these now. Everything here is read-only.
+Background: `release.yml` runs on every push to `main` and is live whenever the repository variable `RELEASE_APP_CLIENT_ID` exists. With no pending changeset, `changeset publish` publishes any version missing from the registry, so a stale variable or a deleted package version is enough to trigger a publish. Never rely on an earlier check; run these now. Everything here is read-only.
 
 1. Variable: `gh variable list` — does `RELEASE_APP_CLIENT_ID` exist? Secret: `gh secret list` — `RELEASE_APP_PRIVATE_KEY`.
 2. Pending changesets on the target: `ls .changeset/*.md` (ignoring `README.md`); an open Version Packages PR: `gh pr list --head changeset-release/main`.
-3. Versions already published: compare each `packages/*/package.json` version with the tags `git tag -l "@kwitsch/*@<version>"` (after `git fetch --tags`). A version without a tag would be published by the next run.
+3. Versions already published: compare each `packages/*/package.json` version with the registry, for example `gh api /users/<owner>/packages/npm/<package-name>/versions --jq '.[].name'` (needs the `read:packages` scope: `gh auth refresh -s read:packages`; without it, read the versions on the package page). A version missing there would be published by the next run. Tags (`git tag -l`) are only a hint: they can be deleted separately.
 4. Recent runs: `gh run list --workflow release --limit 3`.
 5. Protection and settings that matter: `gh api repos/{owner}/{repo}/branches/main/protection` (a 404 means none).
 
