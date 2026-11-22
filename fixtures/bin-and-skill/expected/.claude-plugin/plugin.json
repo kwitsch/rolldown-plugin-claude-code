@@ -1,0 +1,9 @@
+{
+  "name": "bin-and-skill",
+  "version": "0.0.0",
+  "description": "Fixture: a plugin with a bin script and a skill script sharing a helper, built with tsdown and the preset.",
+  "author": {
+    "name": "Kwitsch"
+  },
+  "license": "MIT"
+}

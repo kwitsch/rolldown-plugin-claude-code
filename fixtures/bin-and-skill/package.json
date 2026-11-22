@@ -1,0 +1,19 @@
+{
+  "name": "@fixtures/bin-and-skill",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fixture: a plugin with a bin script and a skill script sharing a helper, built with tsdown and the preset.",
+  "license": "MIT",
+  "author": "Kwitsch",
+  "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "test": "diff -r expected plugin && test -x plugin/bin/doctor.mjs && test -x plugin/skills/hello/greet.mjs"
+  },
+  "dependencies": {
+    "@kwitsch/tsdown-preset-claude-code": "workspace:*"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:"
+  }
+}
