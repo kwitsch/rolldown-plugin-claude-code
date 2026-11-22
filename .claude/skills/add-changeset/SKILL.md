@@ -8,7 +8,7 @@ argument-hint: <patch|minor|empty> <one sentence of user-visible change>
 
 `pnpm changeset` is interactive; write the file directly instead.
 
-1. Pick the bump: a fix is `patch`; a feature or any breaking change is `minor` (below 1.0.0 breaking changes are `minor`, and the text starts with `Breaking:`). No package impact (CI or docs only): an empty changeset.
+1. Pick the bump: a fix is `patch`; a feature or any breaking change is `minor` (below 1.0.0 breaking changes are `minor`, and the text starts with `Breaking:`). A change under `packages/*` that needs no release (tests, comments): an empty changeset. Changes outside `packages/*` need no changeset at all.
 2. Create `.changeset/<kebab-case-summary>.md`:
 
    ```md
