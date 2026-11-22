@@ -1,0 +1,94 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+
+concurrency: release-${{ github.ref }}
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+
+jobs:
+  release:
+    # Inert until the maintainer creates the GitHub App and stores its Client ID in RELEASE_APP_CLIENT_ID.
+    if: vars.RELEASE_APP_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
+    steps:
+      # An App token, unlike GITHUB_TOKEN, lets the Version Packages pull request trigger ci and e2e.
+      - id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: "@kwitsch"
+      - run: pnpm install --frozen-lockfile
+      - id: changesets
+        uses: changesets/action@v2
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          version-script: pnpm version-packages
+          publish-script: pnpm release
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  verify-install:
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      # Same consumer setup as pack-check, but installs the published preset with the .npmrc from the README.
+      - name: Install the preset from GitHub Packages and build the script-only fixture
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          C="$RUNNER_TEMP/consumer"
+          F="$GITHUB_WORKSPACE/fixtures/script-only"
+          catalog() { sed -n "s/^  $1: //p" "$GITHUB_WORKSPACE/pnpm-workspace.yaml"; }
+          V="$(node -p 'require("./packages/tsdown-preset/package.json").version')"
+          mkdir -p "$C"
+          cp -r "$F/hooks.template.json" "$F/tsdown.config.ts" "$F/src" "$C/"
+          node -e 'const p = require(process.argv[1]); for (const k of ["scripts", "dependencies", "devDependencies"]) delete p[k]; process.stdout.write(JSON.stringify(p, null, 2))' "$F/package.json" > "$C/package.json"
+          # Literal ${GITHUB_TOKEN}: pnpm expands it from the environment, as in the README.
+          cat > "$C/.npmrc" <<'EOF'
+          @kwitsch:registry=https://npm.pkg.github.com
+          //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+          EOF
+          # pnpm 11 refuses packages younger than minimumReleaseAge (1 day by default); the release is minutes old.
+          cat > "$C/pnpm-workspace.yaml" <<EOF
+          minimumReleaseAgeExclude: ["@kwitsch/*"]
+          overrides:
+            rolldown: "$(catalog rolldown)"
+            tsdown: "$(catalog tsdown)"
+          EOF
+          cd "$C"
+          for i in 1 2 3 4 5; do
+            pnpm add -D "@kwitsch/tsdown-preset-claude-code@$V" "tsdown@$(catalog tsdown)" && break
+            if [ "$i" = 5 ]; then echo "Install failed after 5 attempts"; exit 1; fi
+            echo "Attempt $i failed; the registry may not serve $V yet. Retrying in 30 s."
+            sleep 30
+          done
+          pnpm exec tsdown
+          diff -r "$F/expected" plugin
+          test -x plugin/hooks/session-start.mjs && test -x plugin/hooks/stop.mjs

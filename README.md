@@ -1,6 +1,6 @@
 # rolldown-plugin-claude-code
 
-Build Claude Code plugins with Rolldown and tsdown. Status: M0 bootstrap — the workspace and tooling are in place, no functionality yet.
+Build Claude Code plugins with Rolldown and tsdown.
 
 ## Packages
 
@@ -87,6 +87,27 @@ The `SKILL.md` stays hand-written in `assets/skills/<skill>/SKILL.md` and calls 
 - Claude Code adds `bin/` to the PATH of the Bash tool; the command is named like the file, for example `doctor.mjs`.
 - claude.ai rejects any plugin with a top-level `bin/` when it is distributed through organization settings (see [Host a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace)). The build does not warn about this.
 
+## Installation
+
+The packages are published to GitHub Packages. Add an `.npmrc` to your project:
+
+```
+@kwitsch:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+Then install the preset together with tsdown:
+
+```sh
+pnpm add -D @kwitsch/tsdown-preset-claude-code tsdown
+```
+
+- **Token:** GitHub Packages requires a personal access token (classic) with the `read:packages` scope, even for public packages (see [Working with the npm registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry)). Keep it in the `GITHUB_TOKEN` environment variable, never in the `.npmrc` itself. Locally this is your personal token; it only shares its name with the token of GitHub Actions.
+- **Which package:** use the preset `@kwitsch/tsdown-preset-claude-code` with tsdown, the plugin `@kwitsch/rolldown-plugin-claude-code` alone to use Rolldown directly, and the core `@kwitsch/claude-code-plugin-core` only for your own tooling.
+- **Compatibility:** Node 26 or newer, tsdown `~0.23.7`, Rolldown `^1.3.0`. Claude Code is checked nightly against its latest release.
+- **pnpm 11:** the default `minimumReleaseAge` (1 day) delays installing a fresh release; add `minimumReleaseAgeExclude: ["@kwitsch/*"]` to your `pnpm-workspace.yaml` to install it immediately.
+- **Outlook:** from v1.0.0 the packages are also published to npmjs, then without a token.
+
 ## Development
 
 Target runtime is Node 26; pnpm is pinned via the `packageManager` field.
@@ -100,8 +121,6 @@ pnpm format
 pnpm format:check
 ```
 
-Installation instructions (GitHub Packages) follow with the first release.
-
 ## Releases
 
 Releases use [Changesets](https://github.com/changesets/changesets). The three packages form a fixed group and always share one version.
@@ -110,6 +129,12 @@ Releases use [Changesets](https://github.com/changesets/changesets). The three p
 - Changes that need no release (tests, internal refactors, package docs) get an empty changeset: `pnpm changeset --empty`.
 - After a merge to `main`, the `release` workflow opens or updates the "Version Packages" pull request with the bumped versions and changelogs.
 - Merging that pull request publishes all three packages to GitHub Packages with the same version, pushes one git tag per package and creates one GitHub release per package.
+
+### Maintainer setup
+
+1. Create a GitHub App with the repository permissions Contents and Pull requests set to read and write, and install it on this repository only. Copy its **Client ID** from the GitHub App page (it sits next to the App ID and is a different value) into the repository variable `RELEASE_APP_CLIENT_ID` (Settings -> Secrets and variables -> Actions -> Variables), and store a private key of the App in the repository secret `RELEASE_APP_PRIVATE_KEY`. The `release` workflow stays inactive until the variable exists; the Version Packages pull request opens on the next push to `main` after that.
+2. Enable "Allow GitHub Actions to create and approve pull requests" (Settings -> Actions -> General).
+3. Keep `.changeset/first-release.md` on `main` until the Version Packages pull request exists: without pending changesets the `release` workflow runs the publish script and would publish version 0.0.0.
 
 ## License
 
