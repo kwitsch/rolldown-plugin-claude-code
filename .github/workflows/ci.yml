@@ -27,3 +27,50 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+
+  pack-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter "./packages/*" build
+      - name: Pack and inspect tarballs
+        run: |
+          mkdir -p "$RUNNER_TEMP/tarballs"
+          for p in core rolldown-plugin tsdown-preset; do
+            (cd "packages/$p" && pnpm pack --pack-destination "$RUNNER_TEMP/tarballs")
+          done
+          for t in "$RUNNER_TEMP"/tarballs/*.tgz; do
+            for f in package/dist/index.mjs package/README.md package/LICENSE; do
+              tar -tzf "$t" | grep -qx "$f" || { echo "$t lacks $f"; exit 1; }
+            done
+            if tar -xzOf "$t" package/package.json | grep -q '"workspace:'; then echo "$t has workspace:"; exit 1; fi
+          done
+      # The consumer lives outside the repo so pnpm finds no parent workspace; pnpm 11 reads overrides only from pnpm-workspace.yaml.
+      - name: Build the script-only fixture in a consumer project
+        run: |
+          T="$RUNNER_TEMP/tarballs"
+          C="$RUNNER_TEMP/consumer"
+          F="$GITHUB_WORKSPACE/fixtures/script-only"
+          catalog() { sed -n "s/^  $1: //p" "$GITHUB_WORKSPACE/pnpm-workspace.yaml"; }
+          mkdir -p "$C"
+          cp -r "$F/hooks.template.json" "$F/tsdown.config.ts" "$F/src" "$C/"
+          # plugin.json is derived from package.json, so keep the fixture's metadata and drop its workspace dependencies.
+          node -e 'const p = require(process.argv[1]); for (const k of ["scripts", "dependencies", "devDependencies"]) delete p[k]; process.stdout.write(JSON.stringify(p, null, 2))' "$F/package.json" > "$C/package.json"
+          cat > "$C/pnpm-workspace.yaml" <<EOF
+          overrides:
+            "@kwitsch/claude-code-plugin-core": "file:$(ls "$T"/kwitsch-claude-code-plugin-core-*.tgz)"
+            "@kwitsch/rolldown-plugin-claude-code": "file:$(ls "$T"/kwitsch-rolldown-plugin-claude-code-*.tgz)"
+            rolldown: "$(catalog rolldown)"
+            tsdown: "$(catalog tsdown)"
+          EOF
+          cd "$C"
+          pnpm add -D "$(ls "$T"/kwitsch-tsdown-preset-claude-code-*.tgz)" "tsdown@$(catalog tsdown)"
+          pnpm exec tsdown
+          diff -r "$F/expected" plugin
+          test -x plugin/hooks/session-start.mjs && test -x plugin/hooks/stop.mjs
