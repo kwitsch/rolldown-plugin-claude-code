@@ -40,7 +40,7 @@ const SCRIPT_SOURCES: Record<string, string> = {
   "src/skills/hello/greet.ts": "console.log(2);\n",
   "assets/skills/hello/SKILL.md": "Run `node ${CLAUDE_SKILL_DIR}/greet.mjs`.\n",
 };
-const SCRIPTS = { bin: ["src/bin/doctor.ts"], skillScripts: { hello: ["src/skills/hello/greet.ts"] } };
+const SCRIPTS = { scripts: { bin: ["src/bin/doctor.ts"], skills: { hello: ["src/skills/hello/greet.ts"] } } };
 
 const entryKey = (config: UserConfig): string | undefined => Object.keys(config.entry as Record<string, string>)[0];
 function byKey(configs: readonly UserConfig[], key: string): UserConfig {
@@ -236,7 +236,7 @@ describe("mcp", () => {
 describe("bin and skill scripts", () => {
   it("returns one config for a project with only bin", async () => {
     const root = await project({ "package.json": PKG, "src/bin/doctor.ts": "console.log(1);\n" });
-    const configs = await pluginConfig({ root, bin: SCRIPTS.bin });
+    const configs = await pluginConfig({ root, scripts: { bin: SCRIPTS.scripts.bin } });
     expect(configs.map(entryKey)).toEqual(["bin/doctor"]);
     expect(configs[0]?.entry).toEqual({ "bin/doctor": join(root, "src/bin/doctor.ts") });
   });

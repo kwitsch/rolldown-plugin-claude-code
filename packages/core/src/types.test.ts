@@ -43,7 +43,7 @@ it("Issue codes are exactly ISSUE_CODES, unique and kebab-case", () => {
   for (const code of ISSUE_CODES) expect(code).toMatch(/^[a-z]+(-[a-z]+)*$/);
 });
 
-it("PluginConfig accepts hooksTemplate, mcpTemplate, manifest, assets, bin and skillScripts and rejects removed fields", () => {
+it("PluginConfig accepts hooksTemplate, mcpTemplate, manifest, assets and scripts and rejects removed fields", () => {
   expectTypeOf<{
     hooksTemplate: "hooks.template.json";
     mcpTemplate: "mcp.template.json";
@@ -51,12 +51,11 @@ it("PluginConfig accepts hooksTemplate, mcpTemplate, manifest, assets, bin and s
     assets: "assets";
   }>().toExtend<PluginConfig>();
   accepts<PluginConfig>({ mcpTemplate: "mcp.template.json" });
-  accepts<PluginConfig>({ bin: ["src/bin/doctor.ts"] });
-  accepts<PluginConfig>({ skillScripts: { dprint: ["src/skills/dprint/run-dprint.ts"] } });
+  accepts<PluginConfig>({ scripts: { bin: ["src/bin/doctor.ts"] } });
+  accepts<PluginConfig>({ scripts: { skills: { dprint: ["src/skills/dprint/run-dprint.ts"] } } });
+  accepts<PluginConfig>({ scripts: {} });
   // @ts-expect-error
   accepts<PluginConfig>({ mod: "src/mods/register.ts" });
-  // @ts-expect-error
-  accepts<PluginConfig>({ scripts: ["src/scripts/pre-tool.ts"] });
   // @ts-expect-error
   accepts<PluginConfig>({ hooksTemplate: ["hooks.template.json"] });
   // @ts-expect-error
@@ -66,5 +65,9 @@ it("PluginConfig accepts hooksTemplate, mcpTemplate, manifest, assets, bin and s
   // @ts-expect-error
   accepts<PluginConfig>({ bin: "src/bin/doctor.ts" });
   // @ts-expect-error
-  accepts<PluginConfig>({ skillScripts: ["src/skills/dprint/run-dprint.ts"] });
+  accepts<PluginConfig>({ skillScripts: { dprint: ["src/skills/dprint/run-dprint.ts"] } });
+  // @ts-expect-error
+  accepts<PluginConfig>({ scripts: { bin: "src/bin/doctor.ts" } });
+  // @ts-expect-error
+  accepts<PluginConfig>({ scripts: { skills: ["src/skills/dprint/run-dprint.ts"] } });
 });

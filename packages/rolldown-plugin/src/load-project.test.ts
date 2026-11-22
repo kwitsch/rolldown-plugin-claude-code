@@ -304,7 +304,7 @@ describe("loadProject scripts", () => {
   const DOCTOR = "console.log(1);\n";
   const GREET = "console.log(2);\n";
   const SKILL_MD = "---\nname: hello\ndescription: Hello.\n---\n\nRun `node ${CLAUDE_SKILL_DIR}/greet.mjs`.\n";
-  const SCRIPTS = { bin: ["src/bin/doctor.ts"], skillScripts: { hello: ["src/skills/hello/greet.ts"] } };
+  const SCRIPTS = { bin: ["src/bin/doctor.ts"], skills: { hello: ["src/skills/hello/greet.ts"] } };
   const SCRIPT_FILES: Record<string, string> = {
     "package.json": pkg(),
     "src/bin/doctor.ts": DOCTOR,
@@ -324,7 +324,7 @@ describe("loadProject scripts", () => {
       root,
       hooksTemplate: "hooks.template.json",
       mcpTemplate: "mcp.template.json",
-      ...SCRIPTS,
+      scripts: SCRIPTS,
     });
     expect(result.issues).toEqual([]);
     expect(result.entries.map((entry) => entry.output)).toEqual([
@@ -341,7 +341,7 @@ describe("loadProject scripts", () => {
       "config/mcp.json": JSON.stringify({ mcpServers: { demo: { command: "../src/server.ts" } } }),
       "src/server.ts": "#!/usr/bin/env node\n",
     });
-    const result = await loadProject({ root, mcpTemplate: "config/mcp.json", ...SCRIPTS });
+    const result = await loadProject({ root, mcpTemplate: "config/mcp.json", scripts: SCRIPTS });
     expect(result.issues).toEqual([]);
     expect(result.entries).toEqual([
       { kind: "script", source: "../src/server.ts", output: "mcp/server.mjs", sourcePath: join(root, "src/server.ts") },
@@ -362,7 +362,7 @@ describe("loadProject scripts", () => {
 
   it("reports a missing script source as path-missing without file and keeps the entry", async () => {
     const root = await project({ "package.json": pkg() });
-    const result = await loadProject({ root, bin: SCRIPTS.bin });
+    const result = await loadProject({ root, scripts: { bin: SCRIPTS.bin } });
     expect(result.entries).toHaveLength(1);
     expect(result.issues).toEqual([{
       severity: "error",
@@ -373,19 +373,19 @@ describe("loadProject scripts", () => {
 
   it("passes core issues through with their config path", async () => {
     const root = await project({ "package.json": pkg() });
-    const result = await loadProject({ root, bin: ["src/doctor.js"] });
+    const result = await loadProject({ root, scripts: { bin: ["src/doctor.js"] } });
     expect(result.entries).toEqual([]);
     expect(result.issues).toEqual([{
       severity: "error",
       code: "path-invalid",
-      message: "bin[0] \"src/doctor.js\": must be a relative path to a .ts or .mts file",
-      path: ["bin", 0],
+      message: "scripts.bin[0] \"src/doctor.js\": must be a relative path to a .ts or .mts file",
+      path: ["scripts", "bin", 0],
     }]);
   });
 
   it("reports a skill without SKILL.md as path-missing", async () => {
     const root = await project({ "package.json": pkg(), "src/skills/hello/greet.ts": GREET });
-    const result = await loadProject({ root, skillScripts: SCRIPTS.skillScripts });
+    const result = await loadProject({ root, scripts: { skills: SCRIPTS.skills } });
     expect(result.issues).toEqual([{
       severity: "error",
       code: "path-missing",
@@ -400,7 +400,7 @@ describe("loadProject scripts", () => {
       "src/skills/hello/greet.ts": GREET,
       "static/readme.txt": "hi\n",
     });
-    const result = await loadProject({ root, assets: "static", skillScripts: SCRIPTS.skillScripts });
+    const result = await loadProject({ root, assets: "static", scripts: { skills: SCRIPTS.skills } });
     expect(result.issues).toEqual([{
       severity: "error",
       code: "path-missing",
@@ -411,7 +411,7 @@ describe("loadProject scripts", () => {
 
   it("warns with entry-unused when SKILL.md does not name the script", async () => {
     const root = await project({ ...SCRIPT_FILES, "assets/skills/hello/SKILL.md": "Reply with \"hello\".\n" });
-    const result = await loadProject({ root, ...SCRIPTS });
+    const result = await loadProject({ root, scripts: SCRIPTS });
     expect(result.issues).toEqual([{
       severity: "warning",
       code: "entry-unused",
@@ -422,14 +422,14 @@ describe("loadProject scripts", () => {
 
   it("accepts a SKILL.md that names the script", async () => {
     const root = await project(SCRIPT_FILES);
-    const result = await loadProject({ root, ...SCRIPTS });
+    const result = await loadProject({ root, scripts: SCRIPTS });
     expect(result.issues).toEqual([]);
     expect(result.assets).toEqual(["skills/hello/SKILL.md"]);
   });
 
   it("reports assets/bin/doctor.mjs next to bin script doctor as entry-conflict", async () => {
     const root = await project({ "package.json": pkg(), "src/bin/doctor.ts": DOCTOR, "assets/bin/doctor.mjs": "\n" });
-    const result = await loadProject({ root, bin: SCRIPTS.bin });
+    const result = await loadProject({ root, scripts: { bin: SCRIPTS.bin } });
     expect(result.issues).toEqual([{
       severity: "error",
       code: "entry-conflict",

@@ -326,8 +326,7 @@ describe("bin and skill scripts", () => {
     "assets/skills/hello/SKILL.md": "Run `node ${CLAUDE_SKILL_DIR}/greet.mjs`.\n",
   };
   const SCRIPTS: ClaudeCodeOptions = {
-    bin: ["src/bin/doctor.ts"],
-    skillScripts: { hello: ["src/skills/hello/greet.ts"] },
+    scripts: { bin: ["src/bin/doctor.ts"], skills: { hello: ["src/skills/hello/greet.ts"] } },
   };
   const BIN_INPUT: Record<string, string> = { "bin/doctor": "src/bin/doctor.ts" };
   const SKILL_INPUT: Record<string, string> = { "skills/hello/greet": "src/skills/hello/greet.ts" };
