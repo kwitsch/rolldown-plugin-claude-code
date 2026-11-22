@@ -135,8 +135,8 @@ Releases use [Changesets](https://github.com/changesets/changesets). The three p
 ### Maintainer setup
 
 1. Create a GitHub App with the repository permissions Contents and Pull requests set to read and write, and install it on this repository only. Copy its **Client ID** from the GitHub App page (it sits next to the App ID and is a different value) into the repository variable `RELEASE_APP_CLIENT_ID` (Settings -> Secrets and variables -> Actions -> Variables), and store a private key of the App in the repository secret `RELEASE_APP_PRIVATE_KEY`. The `release` workflow stays inactive until the variable exists; the Version Packages pull request opens on the next push to `main` after that.
-2. Enable "Allow GitHub Actions to create and approve pull requests" (Settings -> Actions -> General).
-3. Keep `.changeset/first-release.md` on `main` until the Version Packages pull request exists: without pending changesets the `release` workflow runs the publish script and would publish version 0.0.0.
+2. Enable "Allow auto-merge" (Settings -> General -> Pull Requests). Dependabot pull requests rely on it.
+3. Protect `main`: require a pull request and the status checks of the `ci` and `e2e` workflows, including the `changeset` job.
 
 ## License
 
