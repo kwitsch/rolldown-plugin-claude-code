@@ -3,6 +3,7 @@ import {
   pluginManifest,
   renderHooksTemplate,
   renderMcpTemplate,
+  scriptEntries,
   validateManifest,
 } from "@kwitsch/claude-code-plugin-core";
 import { access, readdir, readFile } from "node:fs/promises";
@@ -64,6 +65,23 @@ async function parseTemplate(
   }
 }
 
+// Pushes path-missing for every entry whose source file is not accessible; file is set for template entries only.
+async function reportMissing(entries: readonly ResolvedEntry[], issues: Issue[], file?: string): Promise<void> {
+  const missing = await Promise.all(
+    entries.map((entry) => access(entry.sourcePath).then(() => false, () => true)),
+  );
+  entries.forEach((entry, i) => {
+    if (missing[i]) {
+      issues.push({
+        severity: "error",
+        code: "path-missing",
+        message: `${entry.kind} "${entry.source}" not found`,
+        ...(file === undefined ? {} : { file }),
+      });
+    }
+  });
+}
+
 // Parses and renders one template, resolves its entries against the template's directory and appends to issues/entries.
 async function loadTemplate<T extends { readonly entries: readonly BuildEntry[]; readonly issues: readonly Issue[] }>(
   root: string,
@@ -82,19 +100,7 @@ async function loadTemplate<T extends { readonly entries: readonly BuildEntry[];
     ...entry,
     sourcePath: resolve(dirname(templatePath), entry.source),
   }));
-  const missing = await Promise.all(
-    resolved.map((entry) => access(entry.sourcePath).then(() => false, () => true)),
-  );
-  resolved.forEach((entry, i) => {
-    if (missing[i]) {
-      issues.push({
-        severity: "error",
-        code: "path-missing",
-        message: `${entry.kind} "${entry.source}" not found`,
-        file,
-      });
-    }
-  });
+  await reportMissing(resolved, issues, file);
   entries.push(...resolved);
   return rendered;
 }
@@ -129,6 +135,12 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
     mcpJson = (await loadTemplate(root, options.mcpTemplate, "mcp template", renderMcpTemplate, issues, entries))
       ?.mcpJson;
   }
+  // bin and skill scripts follow the template entries; their paths are relative to the project root.
+  const scripts = scriptEntries(options);
+  issues.push(...scripts.issues);
+  const scriptResolved = scripts.entries.map((entry) => ({ ...entry, sourcePath: resolve(root, entry.source) }));
+  await reportMissing(scriptResolved, issues);
+  entries.push(...scriptResolved);
 
   const assetsLabel = options.assets ?? "assets";
   const assetsDir = resolve(root, assetsLabel);
@@ -159,6 +171,30 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
     }
   }
   assets.sort();
+
+  // Each skill with scripts needs its SKILL.md, and the SKILL.md must name every <name>.mjs.
+  // Core forbids "/" and "\" in skill names, so skills/<skill>/<file> splits safely.
+  const skillFiles = new Map<string, string[]>();
+  for (const entry of scripts.entries) {
+    const [dir, skill, file] = entry.output.split("/");
+    if (dir === "skills" && skill !== undefined && file !== undefined) {
+      skillFiles.set(skill, [...(skillFiles.get(skill) ?? []), file]);
+    }
+  }
+  for (const [skill, files] of skillFiles) {
+    const rel = `skills/${skill}/SKILL.md`;
+    const file = `${assetsLabel}/${rel}`;
+    if (!assets.includes(rel)) {
+      issues.push({ severity: "error", code: "path-missing", message: `SKILL.md of skill "${skill}" not found`, file });
+      continue;
+    }
+    const text = await readFile(join(assetsDir, rel), "utf8");
+    for (const name of files) {
+      if (!text.includes(name)) {
+        issues.push({ severity: "warning", code: "entry-unused", message: `"${name}" is not named in SKILL.md`, file });
+      }
+    }
+  }
 
   const generated = new Set([
     ".claude-plugin/plugin.json",

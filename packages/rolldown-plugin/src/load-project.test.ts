@@ -299,3 +299,142 @@ describe("loadProject assets", () => {
     }]);
   });
 });
+
+describe("loadProject scripts", () => {
+  const DOCTOR = "console.log(1);\n";
+  const GREET = "console.log(2);\n";
+  const SKILL_MD = "---\nname: hello\ndescription: Hello.\n---\n\nRun `node ${CLAUDE_SKILL_DIR}/greet.mjs`.\n";
+  const SCRIPTS = { bin: ["src/bin/doctor.ts"], skillScripts: { hello: ["src/skills/hello/greet.ts"] } };
+  const SCRIPT_FILES: Record<string, string> = {
+    "package.json": pkg(),
+    "src/bin/doctor.ts": DOCTOR,
+    "src/skills/hello/greet.ts": GREET,
+    "assets/skills/hello/SKILL.md": SKILL_MD,
+  };
+
+  it("appends bin and skill entries after the hooks and MCP entries", async () => {
+    const root = await project({
+      ...SCRIPT_FILES,
+      "hooks.template.json": JSON.stringify({ mod: "./src/register.ts", hooks: {} }),
+      "mcp.template.json": JSON.stringify({ mcpServers: { demo: { command: "./src/server.ts" } } }),
+      "src/register.ts": "export function register(): void {}\n",
+      "src/server.ts": "#!/usr/bin/env node\n",
+    });
+    const result = await loadProject({
+      root,
+      hooksTemplate: "hooks.template.json",
+      mcpTemplate: "mcp.template.json",
+      ...SCRIPTS,
+    });
+    expect(result.issues).toEqual([]);
+    expect(result.entries.map((entry) => entry.output)).toEqual([
+      "hooks/register.js",
+      "mcp/server.mjs",
+      "bin/doctor.mjs",
+      "skills/hello/greet.mjs",
+    ]);
+  });
+
+  it("resolves script sources against the project root, not a template", async () => {
+    const root = await project({
+      ...SCRIPT_FILES,
+      "config/mcp.json": JSON.stringify({ mcpServers: { demo: { command: "../src/server.ts" } } }),
+      "src/server.ts": "#!/usr/bin/env node\n",
+    });
+    const result = await loadProject({ root, mcpTemplate: "config/mcp.json", ...SCRIPTS });
+    expect(result.issues).toEqual([]);
+    expect(result.entries).toEqual([
+      { kind: "script", source: "../src/server.ts", output: "mcp/server.mjs", sourcePath: join(root, "src/server.ts") },
+      {
+        kind: "script",
+        source: "src/bin/doctor.ts",
+        output: "bin/doctor.mjs",
+        sourcePath: join(root, "src/bin/doctor.ts"),
+      },
+      {
+        kind: "script",
+        source: "src/skills/hello/greet.ts",
+        output: "skills/hello/greet.mjs",
+        sourcePath: join(root, "src/skills/hello/greet.ts"),
+      },
+    ]);
+  });
+
+  it("reports a missing script source as path-missing without file and keeps the entry", async () => {
+    const root = await project({ "package.json": pkg() });
+    const result = await loadProject({ root, bin: SCRIPTS.bin });
+    expect(result.entries).toHaveLength(1);
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "path-missing",
+      message: "script \"src/bin/doctor.ts\" not found",
+    }]);
+  });
+
+  it("passes core issues through with their config path", async () => {
+    const root = await project({ "package.json": pkg() });
+    const result = await loadProject({ root, bin: ["src/doctor.js"] });
+    expect(result.entries).toEqual([]);
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "path-invalid",
+      message: "bin[0] \"src/doctor.js\": must be a relative path to a .ts or .mts file",
+      path: ["bin", 0],
+    }]);
+  });
+
+  it("reports a skill without SKILL.md as path-missing", async () => {
+    const root = await project({ "package.json": pkg(), "src/skills/hello/greet.ts": GREET });
+    const result = await loadProject({ root, skillScripts: SCRIPTS.skillScripts });
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "path-missing",
+      message: "SKILL.md of skill \"hello\" not found",
+      file: "assets/skills/hello/SKILL.md",
+    }]);
+  });
+
+  it("names the SKILL.md path inside a custom assets folder", async () => {
+    const root = await project({
+      "package.json": pkg(),
+      "src/skills/hello/greet.ts": GREET,
+      "static/readme.txt": "hi\n",
+    });
+    const result = await loadProject({ root, assets: "static", skillScripts: SCRIPTS.skillScripts });
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "path-missing",
+      message: "SKILL.md of skill \"hello\" not found",
+      file: "static/skills/hello/SKILL.md",
+    }]);
+  });
+
+  it("warns with entry-unused when SKILL.md does not name the script", async () => {
+    const root = await project({ ...SCRIPT_FILES, "assets/skills/hello/SKILL.md": "Reply with \"hello\".\n" });
+    const result = await loadProject({ root, ...SCRIPTS });
+    expect(result.issues).toEqual([{
+      severity: "warning",
+      code: "entry-unused",
+      message: "\"greet.mjs\" is not named in SKILL.md",
+      file: "assets/skills/hello/SKILL.md",
+    }]);
+  });
+
+  it("accepts a SKILL.md that names the script", async () => {
+    const root = await project(SCRIPT_FILES);
+    const result = await loadProject({ root, ...SCRIPTS });
+    expect(result.issues).toEqual([]);
+    expect(result.assets).toEqual(["skills/hello/SKILL.md"]);
+  });
+
+  it("reports assets/bin/doctor.mjs next to bin script doctor as entry-conflict", async () => {
+    const root = await project({ "package.json": pkg(), "src/bin/doctor.ts": DOCTOR, "assets/bin/doctor.mjs": "\n" });
+    const result = await loadProject({ root, bin: SCRIPTS.bin });
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "entry-conflict",
+      message: "asset \"bin/doctor.mjs\" collides with a generated file",
+      file: "assets/bin/doctor.mjs",
+    }]);
+  });
+});

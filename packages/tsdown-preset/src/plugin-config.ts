@@ -27,7 +27,7 @@ export async function pluginConfig(options: PresetOptions = {}): Promise<UserCon
   if (project.entries.length === 0) {
     throw new Error(
       formatProblems([
-        "error  the templates define no mod, no command scripts and no MCP servers; nothing to build",
+        "error  the project defines no mod, command scripts, MCP servers, bin scripts or skill scripts; nothing to build",
       ]),
     );
   }

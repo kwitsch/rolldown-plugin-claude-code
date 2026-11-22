@@ -318,6 +318,55 @@ describe("mcp", () => {
   });
 });
 
+describe("bin and skill scripts", () => {
+  const SCRIPT_FILES: Record<string, string> = {
+    "package.json": JSON.stringify({ name: "demo", version: "1.0.0" }),
+    "src/bin/doctor.ts": "console.log(1);\n",
+    "src/skills/hello/greet.ts": "console.log(2);\n",
+    "assets/skills/hello/SKILL.md": "Run `node ${CLAUDE_SKILL_DIR}/greet.mjs`.\n",
+  };
+  const SCRIPTS: ClaudeCodeOptions = {
+    bin: ["src/bin/doctor.ts"],
+    skillScripts: { hello: ["src/skills/hello/greet.ts"] },
+  };
+  const BIN_INPUT: Record<string, string> = { "bin/doctor": "src/bin/doctor.ts" };
+  const SKILL_INPUT: Record<string, string> = { "skills/hello/greet": "src/skills/hello/greet.ts" };
+  const UNUSED = "warning  entry-unused  assets/skills/hello/SKILL.md: \"greet.mjs\" is not named in SKILL.md";
+
+  it("builds chunks under bin/ and skills/<skill>/ that pass the output checks", async () => {
+    const root = await project(SCRIPT_FILES);
+    const bin = await build(root, SCRIPTS, BIN_INPUT, MCP_OUTPUT);
+    const skill = await build(root, { ...SCRIPTS, emitMetadata: false }, SKILL_INPUT, MCP_OUTPUT);
+    expect([...bin.warnings, ...skill.warnings]).toEqual([]);
+    expect(await files(bin.out)).toEqual([
+      ".claude-plugin/plugin.json",
+      "bin/doctor.mjs",
+      "skills/hello/SKILL.md",
+      "skills/hello/greet.mjs",
+    ]);
+    expect(await readFile(join(bin.out, "bin/doctor.mjs"), "utf8")).toMatch(/^#!\/usr\/bin\/env node\n/);
+  });
+
+  it("rejects a wrong file name", async () => {
+    const root = await project(SCRIPT_FILES);
+    await expect(build(root, SCRIPTS, BIN_INPUT, { ...MCP_OUTPUT, entryFileNames: "[name].js" })).rejects.toThrow(
+      /file name must be "bin\/doctor\.mjs"/,
+    );
+  });
+
+  it("fails on entry-unused with strict", async () => {
+    const root = await project({ ...SCRIPT_FILES, "assets/skills/hello/SKILL.md": "Reply with \"hello\".\n" });
+    await expect(build(root, { ...SCRIPTS, strict: true }, BIN_INPUT, MCP_OUTPUT)).rejects.toThrow(UNUSED);
+  });
+
+  it("only warns on entry-unused without strict", async () => {
+    const root = await project({ ...SCRIPT_FILES, "assets/skills/hello/SKILL.md": "Reply with \"hello\".\n" });
+    const { out, warnings } = await build(root, { ...SCRIPTS, strict: false }, BIN_INPUT, MCP_OUTPUT);
+    expect(warnings).toEqual([UNUSED]);
+    expect(await files(out)).toContain("bin/doctor.mjs");
+  });
+});
+
 describe("watch", () => {
   it("rebuilds .mcp.json when the MCP template changes", { timeout: 20_000 }, async () => {
     const root = await project(MCP_FILES);

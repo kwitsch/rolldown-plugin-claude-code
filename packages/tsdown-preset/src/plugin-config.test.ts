@@ -35,6 +35,12 @@ const MCP_SOURCES: Record<string, string> = {
 };
 const MCP_ONLY: Record<string, string> = { "package.json": PKG, ...MCP_SOURCES };
 const MCP = { mcpTemplate: "mcp.template.json" } as const;
+const SCRIPT_SOURCES: Record<string, string> = {
+  "src/bin/doctor.ts": "console.log(1);\n",
+  "src/skills/hello/greet.ts": "console.log(2);\n",
+  "assets/skills/hello/SKILL.md": "Run `node ${CLAUDE_SKILL_DIR}/greet.mjs`.\n",
+};
+const SCRIPTS = { bin: ["src/bin/doctor.ts"], skillScripts: { hello: ["src/skills/hello/greet.ts"] } };
 
 const entryKey = (config: UserConfig): string | undefined => Object.keys(config.entry as Record<string, string>)[0];
 function byKey(configs: readonly UserConfig[], key: string): UserConfig {
@@ -73,7 +79,7 @@ describe("config generation", () => {
   it("rejects a project without entries", async () => {
     const root = await project({ "package.json": PKG, "hooks.template.json": JSON.stringify({ hooks: {} }) });
     await expect(pluginConfig({ root, ...TEMPLATE })).rejects.toThrow(
-      /\[claude-code\] 1 problem\n {2}error {2}the templates define no mod, no command scripts and no MCP servers; nothing to build/,
+      /\[claude-code\] 1 problem\n {2}error {2}the project defines no mod, command scripts, MCP servers, bin scripts or skill scripts; nothing to build/,
     );
   });
 
@@ -224,5 +230,44 @@ describe("mcp", () => {
     const ctx = { options: { logger } } as unknown as Parameters<TsdownHooks["build:done"]>[0];
     await expect(doneHook(configs[0])?.(ctx)).resolves.toBeUndefined();
     expect((await stat(join(outDir, "mcp/server.mjs"))).mode & 0o777).toBe(0o755);
+  });
+});
+
+describe("bin and skill scripts", () => {
+  it("returns one config for a project with only bin", async () => {
+    const root = await project({ "package.json": PKG, "src/bin/doctor.ts": "console.log(1);\n" });
+    const configs = await pluginConfig({ root, bin: SCRIPTS.bin });
+    expect(configs.map(entryKey)).toEqual(["bin/doctor"]);
+    expect(configs[0]?.entry).toEqual({ "bin/doctor": join(root, "src/bin/doctor.ts") });
+  });
+
+  it("gives bin and skill entries the script config", async () => {
+    const root = await project({ "package.json": PKG, ...SCRIPT_SOURCES });
+    const configs = await pluginConfig({ root, ...SCRIPTS });
+    expect(configs.map(entryKey)).toEqual(["bin/doctor", "skills/hello/greet"]);
+    for (const config of configs) {
+      expect(config).toMatchObject({
+        minify: true,
+        banner: "#!/usr/bin/env node",
+        deps: { neverBundle: [], alwaysBundle: [/./] },
+        format: "esm",
+        platform: "node",
+        target: "node26",
+        outDir: join(root, "plugin"),
+      });
+      expect(config.outExtensions?.({} as OutExtensionContext)).toEqual({ js: ".mjs" });
+    }
+  });
+
+  it("forwards strict to claudeCode (true by default)", async () => {
+    const root = await project({ "package.json": PKG, ...SCRIPT_SOURCES });
+    await pluginConfig({ root, ...SCRIPTS });
+    let calls = vi.mocked(claudeCode).mock.calls.map(([options]) => options);
+    expect(calls).toHaveLength(2);
+    for (const options of calls) expect(options).toMatchObject({ root, strict: true, ...SCRIPTS });
+    vi.mocked(claudeCode).mockClear();
+    await pluginConfig({ root, ...SCRIPTS, strict: false });
+    calls = vi.mocked(claudeCode).mock.calls.map(([options]) => options);
+    for (const options of calls) expect(options).toMatchObject({ strict: false });
   });
 });
