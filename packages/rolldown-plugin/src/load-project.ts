@@ -138,7 +138,18 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
   // bin and skill scripts follow the template entries; their paths are relative to the project root.
   const scripts = scriptEntries(options);
   issues.push(...scripts.issues);
-  const scriptResolved = scripts.entries.map((entry) => ({ ...entry, sourcePath: resolve(root, entry.source) }));
+  const modPath = entries.find((entry) => entry.kind === "mod")?.sourcePath;
+  const scriptResolved = scripts.entries
+    .map((entry) => ({ ...entry, sourcePath: resolve(root, entry.source) }))
+    .filter((entry) => {
+      if (entry.sourcePath !== modPath) return true;
+      issues.push({
+        severity: "error",
+        code: "entry-conflict",
+        message: `${entry.kind} "${entry.source}" is already the mod`,
+      });
+      return false;
+    });
   await reportMissing(scriptResolved, issues);
   entries.push(...scriptResolved);
 
