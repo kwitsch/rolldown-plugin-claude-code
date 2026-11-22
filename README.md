@@ -64,7 +64,7 @@ export default await pluginConfig({
 
 ## Bin and skill scripts
 
-Set `bin` to TypeScript files that are built to `bin/<name>.mjs`, and `skillScripts` to a map from a skill name to TypeScript files that are built to `skills/<skill>/<name>.mjs`. Unlike template paths, these paths are relative to the project root. Imported helpers are inlined, and the same build rules as for command hooks apply: one minified ESM file per script, a `#!/usr/bin/env node` shebang, mode `0755` and only `node:*` imports left external.
+Set `scripts.bin` to TypeScript files that are built to `bin/<name>.mjs`, and `scripts.skills` to a map from a skill name to TypeScript files that are built to `skills/<skill>/<name>.mjs`. Unlike template paths, these paths are relative to the project root. Imported helpers are inlined, and the same build rules as for command hooks apply: one minified ESM file per script, a `#!/usr/bin/env node` shebang, mode `0755` and only `node:*` imports left external.
 
 ```ts
 // tsdown.config.ts
@@ -72,12 +72,14 @@ import { pluginConfig } from "@kwitsch/tsdown-preset-claude-code";
 
 export default await pluginConfig({
   hooksTemplate: "hooks.template.json",
-  bin: ["src/bin/doctor.ts"],
-  skillScripts: {
-    dprint: [
-      "src/skills/dprint/run-dprint.ts",
-      "src/skills/dprint/check-dprint.ts",
-    ],
+  scripts: {
+    bin: ["src/bin/doctor.ts"],
+    skills: {
+      dprint: [
+        "src/skills/dprint/run-dprint.ts",
+        "src/skills/dprint/check-dprint.ts",
+      ],
+    },
   },
 });
 ```

@@ -13,11 +13,8 @@ export interface ScriptEntriesResult {
 // A non-separator character before the extension rejects an empty basename such as "src/.ts".
 const SCRIPT_SOURCE = /[^/\\]\.m?ts$/;
 
-// bin -> bin/<name>.mjs, skillScripts -> skills/<skill>/<name>.mjs; pure: no fs, no mutation, no throw.
-export function scriptEntries(config: {
-  readonly bin?: unknown;
-  readonly skillScripts?: unknown;
-}): ScriptEntriesResult {
+// scripts.bin -> bin/<name>.mjs, scripts.skills -> skills/<skill>/<name>.mjs; pure: no fs, no mutation, no throw.
+export function scriptEntries(config: { readonly scripts?: unknown }): ScriptEntriesResult {
   const entries: BuildEntry[] = [];
   const issues: Issue[] = [];
   // output -> source; outputs differ per directory, so only same-directory pairs can collide.
@@ -40,23 +37,29 @@ export function scriptEntries(config: {
     entries.push({ kind: "script", source, output });
   };
 
-  const { bin, skillScripts } = config;
+  const { scripts } = config;
+  if (scripts === undefined) return { entries, issues };
+  if (!isRecord(scripts)) {
+    issues.push(invalid(["scripts"], scripts, "must be an object", "field-type"));
+    return { entries, issues };
+  }
+  const { bin, skills } = scripts;
   if (bin !== undefined) {
     if (Array.isArray(bin)) {
-      bin.forEach((item: unknown, i: number) => add(["bin", i], item, OUTPUT_DIRS.bin));
+      bin.forEach((item: unknown, i: number) => add(["scripts", "bin", i], item, OUTPUT_DIRS.bin));
     } else {
-      issues.push(invalid(["bin"], bin, "must be an array", "field-type"));
+      issues.push(invalid(["scripts", "bin"], bin, "must be an array", "field-type"));
     }
   }
-  if (skillScripts !== undefined) {
-    if (!isRecord(skillScripts)) {
-      issues.push(invalid(["skillScripts"], skillScripts, "must be an object", "field-type"));
+  if (skills !== undefined) {
+    if (!isRecord(skills)) {
+      issues.push(invalid(["scripts", "skills"], skills, "must be an object", "field-type"));
     } else {
-      for (const [skill, list] of Object.entries(skillScripts)) {
+      for (const [skill, list] of Object.entries(skills)) {
         if (/^\.{0,2}$|[/\\]/.test(skill)) {
           issues.push(
             invalid(
-              ["skillScripts", skill],
+              ["scripts", "skills", skill],
               skill,
               "skill name must not be empty, \".\" or \"..\" or contain / or \\",
               "path-invalid",
@@ -65,11 +68,11 @@ export function scriptEntries(config: {
           continue;
         }
         if (!Array.isArray(list)) {
-          issues.push(invalid(["skillScripts", skill], list, "must be an array", "field-type"));
+          issues.push(invalid(["scripts", "skills", skill], list, "must be an array", "field-type"));
           continue;
         }
         list.forEach((item: unknown, i: number) =>
-          add(["skillScripts", skill, i], item, `${OUTPUT_DIRS.skills}/${skill}`)
+          add(["scripts", "skills", skill, i], item, `${OUTPUT_DIRS.skills}/${skill}`)
         );
       }
     }

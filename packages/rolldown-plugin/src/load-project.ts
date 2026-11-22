@@ -135,7 +135,7 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
     mcpJson = (await loadTemplate(root, options.mcpTemplate, "mcp template", renderMcpTemplate, issues, entries))
       ?.mcpJson;
   }
-  // bin and skill scripts follow the template entries; their paths are relative to the project root.
+  // scripts.bin and scripts.skills follow the template entries; their paths are relative to the project root.
   const scripts = scriptEntries(options);
   issues.push(...scripts.issues);
   const modPath = entries.find((entry) => entry.kind === "mod")?.sourcePath;
