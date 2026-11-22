@@ -70,11 +70,9 @@ jobs:
           mkdir -p "$C"
           cp -r "$F/hooks.template.json" "$F/tsdown.config.ts" "$F/src" "$C/"
           node -e 'const p = require(process.argv[1]); for (const k of ["scripts", "dependencies", "devDependencies"]) delete p[k]; process.stdout.write(JSON.stringify(p, null, 2))' "$F/package.json" > "$C/package.json"
-          # Literal ${GITHUB_TOKEN}: pnpm expands it from the environment, as in the README.
-          cat > "$C/.npmrc" <<'EOF'
-          @kwitsch:registry=https://npm.pkg.github.com
-          //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-          EOF
+          # pnpm 11 ignores credentials in a project .npmrc, so the token goes into the user-level config, as in the README.
+          echo "@kwitsch:registry=https://npm.pkg.github.com" > "$C/.npmrc"
+          pnpm config set "//npm.pkg.github.com/:_authToken" "$GITHUB_TOKEN"
           # pnpm 11 refuses packages younger than minimumReleaseAge (1 day by default); the release is minutes old.
           cat > "$C/pnpm-workspace.yaml" <<EOF
           minimumReleaseAgeExclude: ["@kwitsch/*"]
