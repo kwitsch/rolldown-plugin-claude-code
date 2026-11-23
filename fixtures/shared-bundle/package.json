@@ -1,0 +1,19 @@
+{
+  "name": "@fixtures/shared-bundle",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fixture: two bin scripts sharing a bundle with a lazily loaded chunk and a copied file, built with tsdown and the preset.",
+  "license": "MIT",
+  "author": "Kwitsch",
+  "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "test": "diff -r expected plugin && test -x plugin/bin/one.mjs && node plugin/bin/one.mjs | grep -q hello && node plugin/bin/two.mjs | grep -q heavy"
+  },
+  "dependencies": {
+    "@kwitsch/tsdown-preset-claude-code": "workspace:*"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:"
+  }
+}
