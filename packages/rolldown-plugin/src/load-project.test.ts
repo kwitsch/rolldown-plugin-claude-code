@@ -26,6 +26,7 @@ describe("loadProject", () => {
       root,
       assetsDir: join(root, "assets"),
       assets: [],
+      files: [],
       issues: [],
     });
   });
@@ -435,6 +436,149 @@ describe("loadProject scripts", () => {
       code: "entry-conflict",
       message: "asset \"bin/doctor.mjs\" collides with a generated file",
       file: "assets/bin/doctor.mjs",
+    }]);
+  });
+});
+
+describe("loadProject bundles and files", () => {
+  const SHARED = "export const value = 1;\n";
+  const BUNDLES = { "lib/shared": "src/lib/shared/index.ts" };
+
+  it("appends bundles after all other entries", async () => {
+    const root = await project({
+      "package.json": pkg(),
+      "hooks.template.json": JSON.stringify({ mod: "./src/register.ts", hooks: {} }),
+      "src/register.ts": "export function register(): void {}\n",
+      "src/bin/one.ts": "console.log(1);\n",
+      "src/lib/shared/index.ts": SHARED,
+    });
+    const result = await loadProject({
+      root,
+      hooksTemplate: "hooks.template.json",
+      scripts: { bin: ["src/bin/one.ts"] },
+      bundles: BUNDLES,
+    });
+    expect(result.issues).toEqual([]);
+    expect(result.entries.map((entry) => entry.output)).toEqual([
+      "hooks/register.js",
+      "bin/one.mjs",
+      "lib/shared/index.mjs",
+    ]);
+    expect(result.entries.at(-1)).toEqual({
+      kind: "bundle",
+      source: "src/lib/shared/index.ts",
+      output: "lib/shared/index.mjs",
+      sourcePath: join(root, "src/lib/shared/index.ts"),
+    });
+  });
+
+  it("reports a missing bundle source as path-missing without file and keeps the entry", async () => {
+    const root = await project({ "package.json": pkg() });
+    const result = await loadProject({ root, bundles: BUNDLES });
+    expect(result.entries).toHaveLength(1);
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "path-missing",
+      message: "bundle \"src/lib/shared/index.ts\" not found",
+    }]);
+  });
+
+  it("passes core issues through with their config path", async () => {
+    const root = await project({ "package.json": pkg() });
+    const result = await loadProject({ root, bundles: { "lib/shared": "src/lib/shared/index.js" } });
+    expect(result.entries).toEqual([]);
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "path-invalid",
+      message: "bundles.lib/shared \"src/lib/shared/index.js\": must be a relative path to a .ts or .mts file",
+      path: ["bundles", "lib/shared"],
+    }]);
+  });
+
+  it("resolves relative files sources against the root and keeps absolute ones", async () => {
+    const root = await project({ "package.json": pkg(), "data/greeting.txt": "hello\n" });
+    const outside = await project({ "main.wasm": "wasm" });
+    const result = await loadProject({
+      root,
+      files: { "lib/greeting.txt": "data/greeting.txt", "mcp/main.wasm": join(outside, "main.wasm") },
+    });
+    expect(result.issues).toEqual([]);
+    expect(result.files).toEqual([
+      { source: join(root, "data/greeting.txt"), output: "lib/greeting.txt" },
+      { source: join(outside, "main.wasm"), output: "mcp/main.wasm" },
+    ]);
+  });
+
+  it("reports a missing files source as path-missing and drops it", async () => {
+    const root = await project({ "package.json": pkg() });
+    const result = await loadProject({ root, files: { "a.txt": "data/missing.txt" } });
+    expect(result.files).toEqual([]);
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "path-missing",
+      message: "file \"data/missing.txt\" for \"a.txt\" not found or not a file",
+    }]);
+  });
+
+  it("reports a files source that is a directory as path-missing and drops it", async () => {
+    const root = await project({ "package.json": pkg(), "data/dir/x.txt": "x\n" });
+    const result = await loadProject({ root, files: { a: "data/dir" } });
+    expect(result.files).toEqual([]);
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "path-missing",
+      message: "file \"data/dir\" for \"a\" not found or not a file",
+    }]);
+  });
+
+  it("reports a files target equal to a generated file as entry-conflict and drops it", async () => {
+    const root = await project({ "package.json": pkg(), "data/plugin.json": "{}\n" });
+    const result = await loadProject({ root, files: { ".claude-plugin/plugin.json": "data/plugin.json" } });
+    expect(result.files).toEqual([]);
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "entry-conflict",
+      message: "file \".claude-plugin/plugin.json\" collides with a generated file",
+    }]);
+  });
+
+  it("reports an asset equal to a files target as entry-conflict", async () => {
+    const root = await project({ "package.json": pkg(), "data/readme.txt": "a\n", "assets/readme.txt": "b\n" });
+    const result = await loadProject({ root, files: { "readme.txt": "data/readme.txt" } });
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "entry-conflict",
+      message: "asset \"readme.txt\" collides with a generated file",
+      file: "assets/readme.txt",
+    }]);
+  });
+
+  it("reports an asset inside a bundle folder as entry-conflict", async () => {
+    const root = await project({
+      "package.json": pkg(),
+      "src/lib/shared/index.ts": SHARED,
+      "assets/lib/shared/extra.txt": "x\n",
+    });
+    const result = await loadProject({ root, bundles: BUNDLES });
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "entry-conflict",
+      message: "asset \"lib/shared/extra.txt\" lies in bundle folder \"lib/shared\"",
+      file: "assets/lib/shared/extra.txt",
+    }]);
+  });
+
+  it("reports a script output inside a bundle folder as entry-conflict", async () => {
+    const root = await project({
+      "package.json": pkg(),
+      "src/one.ts": "console.log(1);\n",
+      "src/lib/index.ts": SHARED,
+    });
+    const result = await loadProject({ root, scripts: { bin: ["src/one.ts"] }, bundles: { bin: "src/lib/index.ts" } });
+    expect(result.issues).toEqual([{
+      severity: "error",
+      code: "entry-conflict",
+      message: "script output \"bin/one.mjs\" lies in bundle folder \"bin\"",
     }]);
   });
 });
