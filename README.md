@@ -89,6 +89,74 @@ The `SKILL.md` stays hand-written in `assets/skills/<skill>/SKILL.md` and calls 
 - Claude Code adds `bin/` to the PATH of the Bash tool; the command is named like the file, for example `doctor.mjs`.
 - claude.ai rejects any plugin with a top-level `bin/` when it is distributed through organization settings (see [Host a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace)). The build does not warn about this.
 
+## Bundles and files
+
+Set `bundles` to a map from an output folder to the TypeScript entry of a shared bundle, relative to the project root. The bundle is built once: its entry goes to `<folder>/index.mjs` and every chunk it loads with `import()` to `<folder>/[name]-[hash].mjs`. Scripts import the bundle's source entry as usual, for example `import { prettier } from "./vendor/index.js"`; the build keeps that import external and rewrites it to the relative path of the built entry, so the bundle is shared instead of inlined. Types come from the real source, and aliases that point to the entry work too.
+
+Set `files` to a map from an output path to a single source file that is copied there. A source may be absolute or relative to the project root, which lets the config resolve runtime files of a dependency from `node_modules`.
+
+```ts
+// tsdown.config.ts
+import { pluginConfig } from "@kwitsch/tsdown-preset-claude-code";
+import { createRequire } from "node:module";
+import path from "node:path";
+
+const require = createRequire(import.meta.url);
+const javaEntry = require.resolve("prettier-plugin-java");
+
+export default await pluginConfig({
+  mcpTemplate: "mcp.template.json",
+  scripts: {
+    skills: {
+      "universal-format": ["src/skills/universal-format/format-files.ts"],
+    },
+  },
+  bundles: { "mcp/vendor": "src/mcp/vendor/index.ts" },
+  files: {
+    "mcp/vendor/web-tree-sitter.wasm": createRequire(javaEntry).resolve(
+      "web-tree-sitter/web-tree-sitter.wasm",
+    ),
+    "mcp/vendor/tree-sitter-java_orchard.wasm": path.join(
+      path.dirname(javaEntry),
+      "tree-sitter-java_orchard.wasm",
+    ),
+    "mcp/main.wasm": createRequire(require.resolve("prettier-plugin-sh"))
+      .resolve("sh-syntax/main.wasm"),
+  },
+});
+```
+
+```text
+plugin/
+├─ .claude-plugin/plugin.json
+├─ .mcp.json
+├─ mcp/
+│  ├─ server.mjs                    # imports "./vendor/index.mjs"
+│  ├─ main.wasm                     # from files
+│  └─ vendor/
+│     ├─ index.mjs                  # bundle entry
+│     ├─ prettier-<hash>.mjs        # chunks
+│     ├─ web-tree-sitter.wasm       # from files
+│     └─ tree-sitter-java_orchard.wasm
+└─ skills/universal-format/
+   ├─ SKILL.md                      # from assets
+   └─ format-files.mjs              # imports "../../mcp/vendor/index.mjs"
+```
+
+Bundle rules:
+
+- Import only the bundle's source entry; it is the bundle's only interface. Importing another file from the entry's folder fails the build, because that code would be inlined a second time.
+- A bundle is ESM, fully minified, without comments, without a shebang and keeps mode `0644`. Dependencies are inlined, dynamic `import()` is allowed, and only `node:*` imports and the bundle's own chunks stay external.
+- Two bundle folders must not be equal or nested, and no other entry output, asset or `.mjs` file from `files` may lie inside a bundle folder (`entry-conflict`): chunk names are not known before the build.
+- Mods must not import a bundle; such an import fails the build.
+
+`files` rules:
+
+- Every copy gets mode `0644`, so the output is the same on every machine; copy executables through `assets` instead.
+- Only single files are copied; a missing source or a directory is `path-missing`. Put whole folders into `assets` or list their files.
+- A target must be relative without `..` (`path-invalid`) and must not equal a generated file, an entry output or an asset (`entry-conflict`). Non-`.mjs` files may go into a bundle folder, next to its chunks.
+- Copies happen in the build that writes the metadata, after the assets; in watch mode every source is watched.
+
 ## Installation
 
 The packages are published to npmjs. Install the preset together with tsdown:
