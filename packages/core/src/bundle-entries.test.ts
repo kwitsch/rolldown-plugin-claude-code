@@ -103,6 +103,15 @@ it("reports the same folder written as x and x/ as entry-conflict", () => {
   });
 });
 
+it("reports a files target equal to or above a bundle folder as entry-conflict", () => {
+  const result = bundleEntries({
+    bundles: { "lib/shared": "src/s.ts" },
+    files: { "lib/shared": "a.txt", lib: "b.txt" },
+  });
+  expect(result.files).toEqual([]);
+  expect(result.issues.map((found) => found.code)).toEqual(["entry-conflict", "entry-conflict"]);
+});
+
 it("reports nested folders as entry-conflict in both orders", () => {
   expect(bundleEntries({ bundles: { mcp: "src/m.ts", "mcp/vendor": "src/v.ts" } })).toEqual({
     entries: [bundle("src/m.ts", "mcp/index.mjs")],

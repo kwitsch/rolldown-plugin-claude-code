@@ -292,7 +292,11 @@ describe("bundles", () => {
 
   it("gives a bundle its own config after the scripts", async () => {
     const root = await project({ "package.json": PKG, ...BUNDLE_SOURCES });
-    const configs = await pluginConfig({ root, ...BUNDLE_OPTIONS, overrides: { outputOptions: { comments: true } } });
+    const configs = await pluginConfig({
+      root,
+      ...BUNDLE_OPTIONS,
+      overrides: { outputOptions: { comments: true, exports: "named" } },
+    });
     expect(configs.map(entryKey)).toEqual(["bin/one", "lib/shared/index"]);
     const bundle = byKey(configs, "lib/shared/index");
     expect(bundle).toMatchObject({
@@ -304,11 +308,21 @@ describe("bundles", () => {
       target: "node26",
       outDir: join(root, "plugin"),
     });
-    expect(bundle.outputOptions).toEqual({ chunkFileNames: "lib/shared/[name]-[hash].mjs", comments: false });
+    // The bundle fields win; the tsdown options and the user's other outputOptions are kept.
+    expect(typeof bundle.outputOptions).toBe("function");
+    const merged = typeof bundle.outputOptions === "function"
+      ? bundle.outputOptions({ dir: "plugin" }, "es", {} as never)
+      : undefined;
+    expect(merged).toEqual({
+      dir: "plugin",
+      exports: "named",
+      chunkFileNames: "lib/shared/[name]-[hash].mjs",
+      comments: false,
+    });
     expect(bundle.banner).toBeUndefined();
     expect(bundle.outExtensions?.({} as OutExtensionContext)).toEqual({ js: ".mjs" });
     const script = byKey(configs, "bin/one");
-    expect(script.outputOptions).toEqual({ comments: true });
+    expect(script.outputOptions).toEqual({ comments: true, exports: "named" });
     expect(script.banner).toBe("#!/usr/bin/env node");
     const calls = vi.mocked(claudeCode).mock.calls.map(([options]) => options);
     expect(calls.map((options) => options?.emitMetadata)).toEqual([true, false]);

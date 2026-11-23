@@ -152,7 +152,7 @@ Bundle rules:
 
 `files` rules:
 
-- Every copy gets mode `0644`, so the output is the same on every machine; copy executables through `assets` instead.
+- A copy gets mode `0755` when its source is executable by the owner and `0644` otherwise; no other mode bits are kept.
 - Only single files are copied; a missing source or a directory is `path-missing`. Put whole folders into `assets` or list their files.
 - A target must be relative without `..` (`path-invalid`) and must not equal a generated file, an entry output or an asset (`entry-conflict`). Non-`.mjs` files may go into a bundle folder, next to its chunks.
 - Copies happen in the build that writes the metadata, after the assets; in watch mode every source is watched.

@@ -69,6 +69,12 @@ export function bundleEntries(config: { readonly bundles?: unknown; readonly fil
         issues.push(invalid(path, target, "must be a relative path without \"..\"", "path-invalid"));
         continue;
       }
+      // A target that is a bundle folder or one of its parents would collide with the folder itself.
+      const clash = dirs.find((other) => other === output || other.startsWith(`${output}/`));
+      if (clash !== undefined) {
+        issues.push(invalid(path, source, `${output} collides with bundle folder ${show(clash)}`, "entry-conflict"));
+        continue;
+      }
       const dir = output.endsWith(".mjs") ? dirs.find((other) => output.startsWith(`${other}/`)) : undefined;
       if (dir !== undefined) {
         issues.push(

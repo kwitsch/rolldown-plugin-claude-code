@@ -75,7 +75,9 @@ export async function pluginConfig(options: PresetOptions = {}): Promise<UserCon
       minify: mod ? { compress: true, mangle: false } : true,
       banner: banners[i],
       deps: { neverBundle: mod ? ["claude-code"] : [], alwaysBundle: [/./] },
-      plugins: [claudeCode({ ...projectOptions, root: project.root, emitMetadata: i === 0, strict })],
+      plugins: [
+        claudeCode({ ...projectOptions, root: project.root, emitMetadata: i === 0, strict, output: entry.output }),
+      ],
       format: "esm",
       platform: "node",
       target: "node26",
@@ -86,8 +88,17 @@ export async function pluginConfig(options: PresetOptions = {}): Promise<UserCon
       sourcemap: false,
       hooks,
       // Bundle chunks stay in the bundle folder; comments may carry machine-specific module paths.
+      // User outputOptions stay; the two bundle fields win.
       ...(entry.kind === "bundle"
-        ? { outputOptions: { chunkFileNames: `${posix.dirname(entry.output)}/[name]-[hash].mjs`, comments: false } }
+        ? {
+          outputOptions: ((options, format, context) => ({
+            ...(typeof overrides.outputOptions === "function"
+              ? overrides.outputOptions(options, format, context)
+              : { ...options, ...overrides.outputOptions }),
+            chunkFileNames: `${posix.dirname(entry.output)}/[name]-[hash].mjs`,
+            comments: false,
+          })) satisfies Extract<UserConfig["outputOptions"], Function>,
+        }
         : {}),
     };
   });

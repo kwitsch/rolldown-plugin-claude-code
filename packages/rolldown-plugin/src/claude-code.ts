@@ -11,6 +11,8 @@ export interface ClaudeCodeOptions extends ProjectOptions {
   readonly emitMetadata?: boolean;
   /** Treat warnings as errors (default false). */
   readonly strict?: boolean;
+  /** Output path of the entry this build produces (the preset sets it); without it the entry is derived from the input. */
+  readonly output?: string;
 }
 
 interface ChunkCheck {
@@ -138,13 +140,18 @@ function ownEntry(
 }
 
 // Per-file copy: no empty directories, explicit chmod so the umask never changes the mode.
-// Without a mode the source mode is kept.
-async function copyInto(outDir: string, pairs: readonly FileCopy[], mode?: number): Promise<void> {
+// Without a mode the source mode is kept; "normalized" maps it to 0755 (owner-executable source) or 0644.
+async function copyInto(
+  outDir: string,
+  pairs: readonly FileCopy[],
+  mode?: "normalized",
+): Promise<void> {
   await Promise.all(pairs.map(async ({ source, output }) => {
     const target = join(outDir, output);
     await mkdir(dirname(target), { recursive: true });
     await copyFile(source, target);
-    await chmod(target, mode ?? (await stat(source)).mode);
+    const sourceMode = (await stat(source)).mode;
+    await chmod(target, mode === undefined ? sourceMode : sourceMode & 0o100 ? 0o755 : 0o644);
   }));
 }
 
@@ -163,7 +170,9 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
       const loaded = await loadProject(options);
       project = loaded;
       entry = undefined;
-      own = ownEntry(loaded, inputOptions.input);
+      own = options.output === undefined
+        ? ownEntry(loaded, inputOptions.input)
+        : loaded.entries.find((candidate) => candidate.output === options.output);
       bundles = loaded.entries.filter((candidate) => candidate.kind === "bundle");
       this.addWatchFile(join(loaded.root, "package.json"));
       this.addWatchFile(loaded.assetsDir);
@@ -183,7 +192,12 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
       const id = resolve(resolved.id);
       const bundle = bundles.find((candidate) => candidate.sourcePath === id);
       if (bundle !== undefined) return { id: relativeSpecifier(from.output, bundle.output), external: true };
-      const inside = bundles.find((candidate) => id.startsWith(dirname(candidate.sourcePath) + sep));
+      // Only a folder of its own counts: not the project root, not a folder shared with another entry, not node_modules.
+      const inside = id.includes(`${sep}node_modules${sep}`) ? undefined : bundles.find((candidate) => {
+        const folder = dirname(candidate.sourcePath);
+        return folder !== project?.root && id.startsWith(folder + sep)
+          && !project?.entries.some((other) => other.kind !== "bundle" && other.sourcePath.startsWith(folder + sep));
+      });
       if (inside !== undefined) {
         this.error(formatProblems([
           `error  ${importer}: import "${source}" points into bundle folder of "${inside.source}"; import "${inside.source}" instead`,
@@ -225,8 +239,8 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
       const outDir = resolve(outputOptions.dir);
       await Promise.all([
         copyInto(outDir, loaded.assets.map((asset) => ({ source: join(loaded.assetsDir, asset), output: asset }))),
-        // Fixed mode: a package store may mark files executable; 0644 keeps the output identical on every machine.
-        copyInto(outDir, loaded.files, 0o644),
+        // Only the owner-executable bit of the source survives, so a helper script stays runnable.
+        copyInto(outDir, loaded.files, "normalized"),
       ]);
       if (loaded.manifest === undefined) return;
       const issues = await validateLayout({ outDir, manifest: loaded.manifest, entries: entry ? [entry] : [] });

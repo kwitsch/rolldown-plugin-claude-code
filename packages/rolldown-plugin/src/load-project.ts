@@ -166,7 +166,18 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
   // Bundles follow every other entry; their paths are relative to the project root.
   const bundles = bundleEntries(options);
   issues.push(...bundles.issues);
-  const bundleResolved = bundles.entries.map((entry) => ({ ...entry, sourcePath: resolve(root, entry.source) }));
+  const bundleResolved = bundles.entries
+    .map((entry) => ({ ...entry, sourcePath: resolve(root, entry.source) }))
+    .filter((entry) => {
+      const other = entries.find((candidate) => candidate.sourcePath === entry.sourcePath);
+      if (other === undefined) return true;
+      issues.push({
+        severity: "error",
+        code: "entry-conflict",
+        message: `bundle "${entry.source}" is already the ${other.kind} "${other.source}"`,
+      });
+      return false;
+    });
   await reportMissing(bundleResolved, issues);
   const bundleDirs = bundleResolved.map((entry) => posix.dirname(entry.output));
   const inBundle = (rel: string): string | undefined => bundleDirs.find((dir) => rel.startsWith(`${dir}/`));

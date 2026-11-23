@@ -597,13 +597,19 @@ describe("bundle imports", () => {
 });
 
 describe("files", () => {
-  it("copies a files source with mode 0644", async () => {
-    const root = await project({ ...PLAIN_FILES, "data/tool.sh": "#!/bin/sh\n" });
+  it("copies a files source with mode 0644, or 0755 when the source is executable", async () => {
+    const root = await project({ ...PLAIN_FILES, "data/tool.sh": "#!/bin/sh\n", "data/plain.txt": "x\n" });
     await chmod(join(root, "data/tool.sh"), 0o755);
-    const { out, warnings } = await build(root, { files: { "lib/tool.sh": "data/tool.sh" } }, PLAIN_INPUT);
+    await chmod(join(root, "data/plain.txt"), 0o664);
+    const { out, warnings } = await build(
+      root,
+      { files: { "lib/tool.sh": "data/tool.sh", "lib/plain.txt": "data/plain.txt" } },
+      PLAIN_INPUT,
+    );
     expect(warnings).toEqual([]);
     expect(await readFile(join(out, "lib/tool.sh"), "utf8")).toBe("#!/bin/sh\n");
-    expect((await stat(join(out, "lib/tool.sh"))).mode & 0o777).toBe(0o644);
+    expect((await stat(join(out, "lib/tool.sh"))).mode & 0o777).toBe(0o755);
+    expect((await stat(join(out, "lib/plain.txt"))).mode & 0o777).toBe(0o644);
   });
 
   it("copies nothing with emitMetadata: false", async () => {
