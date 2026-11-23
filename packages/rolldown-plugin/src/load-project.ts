@@ -1,13 +1,21 @@
-import type { BuildEntry, Issue, PackageJson, PluginConfig, PluginManifest } from "@kwitsch/claude-code-plugin-core";
+import type {
+  BuildEntry,
+  FileCopy,
+  Issue,
+  PackageJson,
+  PluginConfig,
+  PluginManifest,
+} from "@kwitsch/claude-code-plugin-core";
 import {
+  bundleEntries,
   pluginManifest,
   renderHooksTemplate,
   renderMcpTemplate,
   scriptEntries,
   validateManifest,
 } from "@kwitsch/claude-code-plugin-core";
-import { access, readdir, readFile } from "node:fs/promises";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { access, readdir, readFile, stat } from "node:fs/promises";
+import { dirname, join, posix, relative, resolve, sep } from "node:path";
 
 export interface ProjectOptions extends PluginConfig {
   readonly root?: string;
@@ -25,6 +33,8 @@ export interface LoadedProject {
   readonly root: string;
   readonly assetsDir: string;
   readonly assets: readonly string[];
+  /** Single files to copy; source is absolute. */
+  readonly files: readonly FileCopy[];
   readonly issues: readonly Issue[];
 }
 
@@ -153,6 +163,25 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
   await reportMissing(scriptResolved, issues);
   entries.push(...scriptResolved);
 
+  // Bundles follow every other entry; their paths are relative to the project root.
+  const bundles = bundleEntries(options);
+  issues.push(...bundles.issues);
+  const bundleResolved = bundles.entries.map((entry) => ({ ...entry, sourcePath: resolve(root, entry.source) }));
+  await reportMissing(bundleResolved, issues);
+  const bundleDirs = bundleResolved.map((entry) => posix.dirname(entry.output));
+  const inBundle = (rel: string): string | undefined => bundleDirs.find((dir) => rel.startsWith(`${dir}/`));
+  for (const entry of entries) {
+    const dir = inBundle(entry.output);
+    if (dir !== undefined) {
+      issues.push({
+        severity: "error",
+        code: "entry-conflict",
+        message: `${entry.kind} output "${entry.output}" lies in bundle folder "${dir}"`,
+      });
+    }
+  }
+  entries.push(...bundleResolved);
+
   const assetsLabel = options.assets ?? "assets";
   const assetsDir = resolve(root, assetsLabel);
   const dirents = await readdir(assetsDir, { recursive: true, withFileTypes: true }).catch((error: unknown) => {
@@ -213,16 +242,48 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
     ...(mcpJson === undefined ? [] : [".mcp.json"]),
     ...entries.map((entry) => entry.output),
   ]);
-  for (const rel of assets) {
-    if (generated.has(rel)) {
+  // Sequential so issues keep the order of the files option.
+  const files: FileCopy[] = [];
+  for (const copy of bundles.files) {
+    const source = resolve(root, copy.source);
+    const isFile = await stat(source).then(
+      (info) => info.isFile(),
+      (error: unknown) => {
+        if (isErrno(error, "ENOENT") || isErrno(error, "ENOTDIR")) return false;
+        throw error;
+      },
+    );
+    if (!isFile) {
+      issues.push({
+        severity: "error",
+        code: "path-missing",
+        message: `file "${copy.source}" for "${copy.output}" not found or not a file`,
+      });
+    } else if (generated.has(copy.output)) {
       issues.push({
         severity: "error",
         code: "entry-conflict",
-        message: `asset "${rel}" collides with a generated file`,
+        message: `file "${copy.output}" collides with a generated file`,
+      });
+    } else {
+      files.push({ source, output: copy.output });
+      generated.add(copy.output);
+    }
+  }
+
+  for (const rel of assets) {
+    const dir = inBundle(rel);
+    if (generated.has(rel) || dir !== undefined) {
+      issues.push({
+        severity: "error",
+        code: "entry-conflict",
+        message: dir === undefined
+          ? `asset "${rel}" collides with a generated file`
+          : `asset "${rel}" lies in bundle folder "${dir}"`,
         file: `${assetsLabel}/${rel}`,
       });
     }
   }
 
-  return { manifest, hooksJson, mcpJson, entries, root, assetsDir, assets, issues };
+  return { manifest, hooksJson, mcpJson, entries, root, assetsDir, assets, files, issues };
 }
