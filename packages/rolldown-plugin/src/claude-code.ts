@@ -154,6 +154,7 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
   let project: LoadedProject | undefined;
   let entry: ResolvedEntry | undefined;
   let own: ResolvedEntry | undefined;
+  let bundles: readonly ResolvedEntry[] = [];
 
   return {
     name: "claude-code",
@@ -163,6 +164,7 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
       project = loaded;
       entry = undefined;
       own = ownEntry(loaded, inputOptions.input);
+      bundles = loaded.entries.filter((candidate) => candidate.kind === "bundle");
       this.addWatchFile(join(loaded.root, "package.json"));
       this.addWatchFile(loaded.assetsDir);
       if (options.hooksTemplate !== undefined) this.addWatchFile(resolve(loaded.root, options.hooksTemplate));
@@ -175,7 +177,6 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
     // Mod and script builds keep a bundle entry external and import its built file instead.
     async resolveId(source, importer) {
       const from = own;
-      const bundles = project?.entries.filter((candidate) => candidate.kind === "bundle") ?? [];
       if (importer === undefined || from === undefined || from.kind === "bundle" || bundles.length === 0) return null;
       const resolved = await this.resolve(source, importer, { skipSelf: true });
       if (!resolved || resolved.external) return null;
@@ -222,9 +223,11 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
       const loaded = project;
       if (!emitMetadata || loaded === undefined || !outputOptions.dir) return;
       const outDir = resolve(outputOptions.dir);
-      await copyInto(outDir, loaded.assets.map((asset) => ({ source: join(loaded.assetsDir, asset), output: asset })));
-      // Fixed mode: a package store may mark files executable; 0644 keeps the output identical on every machine.
-      await copyInto(outDir, loaded.files, 0o644);
+      await Promise.all([
+        copyInto(outDir, loaded.assets.map((asset) => ({ source: join(loaded.assetsDir, asset), output: asset }))),
+        // Fixed mode: a package store may mark files executable; 0644 keeps the output identical on every machine.
+        copyInto(outDir, loaded.files, 0o644),
+      ]);
       if (loaded.manifest === undefined) return;
       const issues = await validateLayout({ outDir, manifest: loaded.manifest, entries: entry ? [entry] : [] });
       report(this, issues, strict);

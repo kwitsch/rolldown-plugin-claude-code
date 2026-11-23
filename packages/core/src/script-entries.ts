@@ -11,7 +11,10 @@ export interface ScriptEntriesResult {
 }
 
 // A non-separator character before the extension rejects an empty basename such as "src/.ts".
-export const SCRIPT_SOURCE: RegExp = /[^/\\]\.m?ts$/;
+const SCRIPT_SOURCE = /[^/\\]\.m?ts$/;
+
+// A relative path to a .ts or .mts file.
+export const isScriptSource = (value: string): boolean => !isAbsolute(value) && SCRIPT_SOURCE.test(value);
 
 // scripts.bin -> bin/<name>.mjs, scripts.skills -> skills/<skill>/<name>.mjs; pure: no fs, no mutation, no throw.
 export function scriptEntries(config: { readonly scripts?: unknown }): ScriptEntriesResult {
@@ -21,7 +24,7 @@ export function scriptEntries(config: { readonly scripts?: unknown }): ScriptEnt
   const built = new Map<string, string>();
 
   const add = (path: IssuePath, value: unknown, dir: string): void => {
-    if (typeof value !== "string" || value === "" || isAbsolute(value) || !SCRIPT_SOURCE.test(value)) {
+    if (typeof value !== "string" || value === "" || !isScriptSource(value)) {
       issues.push(invalid(path, value, "must be a relative path to a .ts or .mts file", "path-invalid"));
       return;
     }

@@ -1,7 +1,7 @@
 import { posix } from "node:path";
 import type { BuildEntry } from "./build-entry.js";
 import type { Issue } from "./issue.js";
-import { SCRIPT_SOURCE } from "./script-entries.js";
+import { isScriptSource } from "./script-entries.js";
 import { invalid, isAbsolute } from "./template-command.js";
 import { isRecord, show } from "./validate-manifest.js";
 
@@ -16,8 +16,9 @@ export interface BundleEntriesResult {
   readonly issues: readonly Issue[];
 }
 
-// Empty, absolute or with a ".." segment; "/" and "\" both separate segments.
-const badPath = (path: string): boolean => path === "" || isAbsolute(path) || path.split(/[\\/]/).includes("..");
+// Empty, absolute, with a backslash (posix.normalize would keep it in a name) or with a ".." segment.
+const badPath = (path: string): boolean =>
+  path === "" || isAbsolute(path) || path.includes("\\") || path.split("/").includes("..");
 
 // bundles -> <folder>/index.mjs, files -> single copies to fixed outputs; pure: no fs, no mutation, no throw.
 export function bundleEntries(config: { readonly bundles?: unknown; readonly files?: unknown }): BundleEntriesResult {
@@ -40,7 +41,7 @@ export function bundleEntries(config: { readonly bundles?: unknown; readonly fil
         issues.push(invalid(path, folder, "must be a relative folder without \"..\"", "path-invalid"));
         continue;
       }
-      if (isAbsolute(source) || !SCRIPT_SOURCE.test(source)) {
+      if (!isScriptSource(source)) {
         issues.push(invalid(path, source, "must be a relative path to a .ts or .mts file", "path-invalid"));
         continue;
       }
@@ -63,11 +64,11 @@ export function bundleEntries(config: { readonly bundles?: unknown; readonly fil
         issues.push(invalid(path, source, "must be a string", "field-type"));
         continue;
       }
-      if (badPath(target)) {
+      const output = posix.normalize(target);
+      if (badPath(target) || output === "." || output.endsWith("/")) {
         issues.push(invalid(path, target, "must be a relative path without \"..\"", "path-invalid"));
         continue;
       }
-      const output = posix.normalize(target);
       const dir = output.endsWith(".mjs") ? dirs.find((other) => output.startsWith(`${other}/`)) : undefined;
       if (dir !== undefined) {
         issues.push(
