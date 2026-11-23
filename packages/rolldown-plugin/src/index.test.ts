@@ -6,8 +6,14 @@ it("exports claudeCode and loadProject", () => {
   expect(typeof loadProject).toBe("function");
 });
 
-it("claudeCode uses only buildStart, generateBundle and writeBundle", () => {
-  expect(Object.keys(claudeCode()).sort()).toEqual(["buildStart", "generateBundle", "name", "writeBundle"]);
+it("claudeCode uses only buildStart, resolveId, generateBundle and writeBundle", () => {
+  expect(Object.keys(claudeCode()).sort()).toEqual([
+    "buildStart",
+    "generateBundle",
+    "name",
+    "resolveId",
+    "writeBundle",
+  ]);
 });
 
 it("exports the collected issue format", () => {

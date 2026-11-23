@@ -1,7 +1,7 @@
-import type { Issue } from "@kwitsch/claude-code-plugin-core";
+import type { FileCopy, Issue } from "@kwitsch/claude-code-plugin-core";
 import { validateLayout } from "@kwitsch/claude-code-plugin-core";
 import { chmod, copyFile, mkdir, stat } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, extname, join, posix, resolve, sep } from "node:path";
 import type { OutputChunk, Plugin, PluginContext } from "rolldown";
 import type { LoadedProject, ProjectOptions, ResolvedEntry } from "./load-project.js";
 import { loadProject } from "./load-project.js";
@@ -42,30 +42,77 @@ function report(ctx: PluginContext, issues: readonly Issue[], strict: boolean): 
   }
 }
 
+// Import specifier from one output file to another: "/"-separated, always starting with "./" or "../".
+function relativeSpecifier(from: string, to: string): string {
+  const rel = posix.relative(posix.dirname(from), to);
+  return rel.startsWith("../") ? rel : `./${rel}`;
+}
+
+// A bundle is its entry chunk plus any chunks it loads, all inside its output folder.
+function checkBundle(
+  chunks: readonly OutputChunk[],
+  main: OutputChunk,
+  entry: ResolvedEntry,
+  format: string,
+): string[] {
+  const problems: string[] = [];
+  const line = (fileName: string, text: string): void => {
+    problems.push(`error  ${fileName}: ${text}`);
+  };
+  const dir = posix.dirname(entry.output);
+  const own = new Set(chunks.map((chunk) => chunk.fileName).filter((name) => name.startsWith(`${dir}/`)));
+  if (main.fileName !== entry.output) line(main.fileName, `file name must be "${entry.output}"`);
+  if (format !== "es") line(main.fileName, `output.format must be "es", got "${format}"`);
+  for (const chunk of chunks) {
+    if (!chunk.fileName.startsWith(`${dir}/`) || !chunk.fileName.endsWith(".mjs")) {
+      line(chunk.fileName, `chunk must lie in "${dir}/" and end in ".mjs"`);
+    }
+    for (const id of [...chunk.imports, ...chunk.dynamicImports]) {
+      if (!id.startsWith("node:") && !own.has(id)) {
+        line(chunk.fileName, `import "${id}" is not allowed; only node:* and chunks of this bundle may stay external`);
+      }
+    }
+    if (chunk.code.startsWith("#!")) line(chunk.fileName, "a bundle must not start with a shebang");
+  }
+  return problems;
+}
+
 function checkChunk(chunks: readonly OutputChunk[], entries: readonly ResolvedEntry[], format: string): ChunkCheck {
   const problems: string[] = [];
-  const [chunk] = chunks;
+  const chunk = chunks.find((candidate) => candidate.isEntry) ?? chunks[0];
   if (chunk === undefined) {
     return { problems: [`error  bundle: bundle has 0 chunks; expected exactly one`], entry: undefined };
   }
   const line = (text: string): void => {
     problems.push(`error  ${chunk.fileName}: ${text}`);
   };
-  if (chunks.length !== 1) line(`bundle has ${chunks.length} chunks; expected exactly one`);
 
   const id = chunk.facadeModuleId && resolve(chunk.facadeModuleId);
   // One source may feed both templates; prefer the entry this chunk was built as.
   const bySource = entries.filter((candidate) => candidate.sourcePath === id);
   const entry = bySource.find((candidate) => candidate.output === chunk.fileName) ?? bySource[0];
+  if (entry?.kind === "bundle") return { problems: checkBundle(chunks, chunk, entry, format), entry };
+
+  if (chunks.length !== 1) line(`bundle has ${chunks.length} chunks; expected exactly one`);
   if (entry === undefined) {
     line(`input "${chunk.facadeModuleId}" is not an entry of the hooks template`);
     return { problems, entry };
   }
   if (chunk.fileName !== entry.output) line(`file name must be "${entry.output}"`);
   if (format !== "es") line(`output.format must be "es", got "${format}"`);
-  const allowed = entry.kind === "mod" ? "only node:* and claude-code" : "only node:*";
+  // A script may import the rewritten entry of every bundle; a mod never may.
+  const bundleImports = entry.kind === "script"
+    ? entries.filter((candidate) => candidate.kind === "bundle").map((bundle) =>
+      relativeSpecifier(entry.output, bundle.output)
+    )
+    : [];
+  const allowed = entry.kind === "mod"
+    ? "only node:* and claude-code"
+    : bundleImports.length > 0
+    ? "only node:* and bundle entries"
+    : "only node:*";
   for (const id of [...chunk.imports, ...chunk.dynamicImports]) {
-    if (!id.startsWith("node:") && !(entry.kind === "mod" && id === "claude-code")) {
+    if (!id.startsWith("node:") && !(entry.kind === "mod" && id === "claude-code") && !bundleImports.includes(id)) {
       line(`import "${id}" is not allowed; ${allowed} may stay external`);
     }
   }
@@ -75,14 +122,29 @@ function checkChunk(chunks: readonly OutputChunk[], entries: readonly ResolvedEn
   return { problems, entry };
 }
 
+// The entry this build runs for: one source may feed several entries, so the input name decides.
+function ownEntry(
+  loaded: LoadedProject,
+  input: readonly string[] | Readonly<Record<string, string>>,
+): ResolvedEntry | undefined {
+  for (const [name, path] of Object.entries(input)) {
+    const sourcePath = resolve(loaded.root, path);
+    const bySource = loaded.entries.filter((candidate) => candidate.sourcePath === sourcePath);
+    const match = bySource.find((candidate) => candidate.output.slice(0, -extname(candidate.output).length) === name)
+      ?? bySource[0];
+    if (match !== undefined) return match;
+  }
+  return undefined;
+}
+
 // Per-file copy: no empty directories, explicit chmod so the umask never changes the mode.
-async function copyAssets(assetsDir: string, assets: readonly string[], outDir: string): Promise<void> {
-  await Promise.all(assets.map(async (asset) => {
-    const source = join(assetsDir, asset);
-    const target = join(outDir, asset);
+// Without a mode the source mode is kept.
+async function copyInto(outDir: string, pairs: readonly FileCopy[], mode?: number): Promise<void> {
+  await Promise.all(pairs.map(async ({ source, output }) => {
+    const target = join(outDir, output);
     await mkdir(dirname(target), { recursive: true });
     await copyFile(source, target);
-    await chmod(target, (await stat(source)).mode);
+    await chmod(target, mode ?? (await stat(source)).mode);
   }));
 }
 
@@ -91,20 +153,42 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
   const strict = options.strict ?? false;
   let project: LoadedProject | undefined;
   let entry: ResolvedEntry | undefined;
+  let own: ResolvedEntry | undefined;
 
   return {
     name: "claude-code",
 
-    async buildStart() {
+    async buildStart(inputOptions) {
       const loaded = await loadProject(options);
       project = loaded;
       entry = undefined;
+      own = ownEntry(loaded, inputOptions.input);
       this.addWatchFile(join(loaded.root, "package.json"));
       this.addWatchFile(loaded.assetsDir);
       if (options.hooksTemplate !== undefined) this.addWatchFile(resolve(loaded.root, options.hooksTemplate));
       if (options.mcpTemplate !== undefined) this.addWatchFile(resolve(loaded.root, options.mcpTemplate));
       for (const asset of loaded.assets) this.addWatchFile(join(loaded.assetsDir, asset));
+      for (const file of loaded.files) this.addWatchFile(file.source);
       report(this, loaded.issues, strict);
+    },
+
+    // Mod and script builds keep a bundle entry external and import its built file instead.
+    async resolveId(source, importer) {
+      const from = own;
+      const bundles = project?.entries.filter((candidate) => candidate.kind === "bundle") ?? [];
+      if (importer === undefined || from === undefined || from.kind === "bundle" || bundles.length === 0) return null;
+      const resolved = await this.resolve(source, importer, { skipSelf: true });
+      if (!resolved || resolved.external) return null;
+      const id = resolve(resolved.id);
+      const bundle = bundles.find((candidate) => candidate.sourcePath === id);
+      if (bundle !== undefined) return { id: relativeSpecifier(from.output, bundle.output), external: true };
+      const inside = bundles.find((candidate) => id.startsWith(dirname(candidate.sourcePath) + sep));
+      if (inside !== undefined) {
+        this.error(formatProblems([
+          `error  ${importer}: import "${source}" points into bundle folder of "${inside.source}"; import "${inside.source}" instead`,
+        ]));
+      }
+      return null;
     },
 
     generateBundle(outputOptions, bundle) {
@@ -138,7 +222,9 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
       const loaded = project;
       if (!emitMetadata || loaded === undefined || !outputOptions.dir) return;
       const outDir = resolve(outputOptions.dir);
-      await copyAssets(loaded.assetsDir, loaded.assets, outDir);
+      await copyInto(outDir, loaded.assets.map((asset) => ({ source: join(loaded.assetsDir, asset), output: asset })));
+      // Fixed mode: a package store may mark files executable; 0644 keeps the output identical on every machine.
+      await copyInto(outDir, loaded.files, 0o644);
       if (loaded.manifest === undefined) return;
       const issues = await validateLayout({ outDir, manifest: loaded.manifest, entries: entry ? [entry] : [] });
       report(this, issues, strict);

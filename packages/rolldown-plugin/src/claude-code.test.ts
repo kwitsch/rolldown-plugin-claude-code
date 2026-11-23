@@ -1,7 +1,7 @@
 import { chmod, mkdir, mkdtemp, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
-import type { OutputOptions, RolldownWatcherEvent } from "rolldown";
+import type { InputOptions, OutputOptions, RolldownWatcherEvent } from "rolldown";
 import { rolldown, watch } from "rolldown";
 import { describe, expect, it } from "vitest";
 import type { ClaudeCodeOptions } from "./claude-code.js";
@@ -26,6 +26,7 @@ async function build(
   options: ClaudeCodeOptions = {},
   input: Record<string, string> = { "hooks/register": "src/register.ts" },
   output: OutputOptions = {},
+  extra: InputOptions = {},
 ): Promise<BuildResult> {
   const warnings: string[] = [];
   const out = join(root, "out");
@@ -33,6 +34,7 @@ async function build(
     input: Object.fromEntries(Object.entries(input).map(([name, file]) => [name, join(root, file)])),
     platform: "node",
     external: ["claude-code"],
+    ...extra,
     plugins: [claudeCode({ root, ...options })],
     onLog(level, log) {
       if (level === "warn") warnings.push(log.message);
@@ -45,6 +47,26 @@ async function build(
   }
   return { out, warnings };
 }
+
+type Watcher = ReturnType<typeof watch>;
+
+// Resolves on the next END of a build cycle, rejects on ERROR; every bundle result is closed.
+const nextEnd = (watcher: Watcher): Promise<void> =>
+  new Promise((resolveEnd, rejectEnd) => {
+    const listener = (event: RolldownWatcherEvent): void => {
+      if (event.code === "BUNDLE_END") void event.result.close();
+      if (event.code === "ERROR") {
+        void event.result.close();
+        watcher.off("event", listener);
+        rejectEnd(event.error);
+      }
+      if (event.code === "END") {
+        watcher.off("event", listener);
+        resolveEnd();
+      }
+    };
+    watcher.on("event", listener);
+  });
 
 async function files(dir: string): Promise<string[]> {
   const dirents = await readdir(dir, { recursive: true, withFileTypes: true });
@@ -376,28 +398,11 @@ describe("watch", () => {
       plugins: [claudeCode({ root, ...MCP_TEMPLATE })],
       output: { dir: out, format: "es", ...MCP_OUTPUT },
     });
-    // Resolves on the next END of a build cycle, rejects on ERROR; every bundle result is closed.
-    const nextEnd = (): Promise<void> =>
-      new Promise((resolveEnd, rejectEnd) => {
-        const listener = (event: RolldownWatcherEvent): void => {
-          if (event.code === "BUNDLE_END") void event.result.close();
-          if (event.code === "ERROR") {
-            void event.result.close();
-            watcher.off("event", listener);
-            rejectEnd(event.error);
-          }
-          if (event.code === "END") {
-            watcher.off("event", listener);
-            resolveEnd();
-          }
-        };
-        watcher.on("event", listener);
-      });
     try {
-      await nextEnd();
+      await nextEnd(watcher);
       expect(JSON.parse(await readFile(join(out, ".mcp.json"), "utf8"))).toEqual(MCP_JSON);
       const docs = { type: "http", url: "https://example.com/mcp" };
-      const rebuilt = nextEnd();
+      const rebuilt = nextEnd(watcher);
       await writeFile(
         join(root, "mcp.template.json"),
         JSON.stringify({ mcpServers: { demo: { command: "./src/server.ts" }, docs } }),
@@ -409,5 +414,205 @@ describe("watch", () => {
     } finally {
       await watcher.close();
     }
+  });
+
+  it("copies a files source again when it changes", { timeout: 20_000 }, async () => {
+    const root = await project({ ...PLAIN_FILES, "data/greeting.txt": "hello\n" });
+    const out = join(root, "out");
+    const watcher = watch({
+      input: { index: join(root, "src/index.ts") },
+      platform: "node",
+      plugins: [claudeCode({ root, files: { "greeting.txt": "data/greeting.txt" } })],
+      output: { dir: out, format: "es", entryFileNames: "[name].js" },
+    });
+    try {
+      await nextEnd(watcher);
+      expect(await readFile(join(out, "greeting.txt"), "utf8")).toBe("hello\n");
+      const rebuilt = nextEnd(watcher);
+      await writeFile(join(root, "data/greeting.txt"), "hi again\n");
+      await rebuilt;
+      expect(await readFile(join(out, "greeting.txt"), "utf8")).toBe("hi again\n");
+    } finally {
+      await watcher.close();
+    }
+  });
+});
+
+describe("bundle builds", () => {
+  const SHARED_INDEX = "import { readFileSync } from \"node:fs\";\n"
+    + "export const read = (): unknown => readFileSync;\n"
+    + "export async function loadHeavy(): Promise<string> { return (await import(\"./heavy.js\")).heavy(); }\n";
+  const BUNDLE_FILES: Record<string, string> = {
+    "package.json": JSON.stringify({ name: "demo", version: "1.0.0" }),
+    "src/lib/shared/index.ts": SHARED_INDEX,
+    "src/lib/shared/heavy.ts": "export function heavy(): string { return \"heavy\"; }\n",
+  };
+  const BUNDLES: ClaudeCodeOptions = { bundles: { "lib/shared": "src/lib/shared/index.ts" } };
+  const BUNDLE_INPUT: Record<string, string> = { "lib/shared/index": "src/lib/shared/index.ts" };
+  const BUNDLE_OUTPUT: OutputOptions = { entryFileNames: "[name].mjs", chunkFileNames: "lib/shared/[name]-[hash].mjs" };
+
+  it("builds the entry and a lazily loaded chunk inside the bundle folder", async () => {
+    const root = await project(BUNDLE_FILES);
+    const { out, warnings } = await build(root, BUNDLES, BUNDLE_INPUT, BUNDLE_OUTPUT);
+    expect(warnings).toEqual([]);
+    const names = await files(out);
+    expect(names).toContain("lib/shared/index.mjs");
+    expect(names.filter((name) => /^lib\/shared\/heavy-[\w-]+\.mjs$/.test(name))).toHaveLength(1);
+  });
+
+  it("rejects a chunk outside the bundle folder", async () => {
+    const root = await project(BUNDLE_FILES);
+    await expect(
+      build(root, BUNDLES, BUNDLE_INPUT, { ...BUNDLE_OUTPUT, chunkFileNames: "[name]-[hash].mjs" }),
+    ).rejects.toThrow(/chunk must lie in "lib\/shared\/" and end in "\.mjs"/);
+  });
+
+  it("rejects an external npm import", async () => {
+    const root = await project({
+      ...BUNDLE_FILES,
+      "src/lib/shared/index.ts": "import { on } from \"claude-code\";\nexport const value = on;\n",
+    });
+    await expect(build(root, BUNDLES, BUNDLE_INPUT, BUNDLE_OUTPUT)).rejects.toThrow(
+      /import "claude-code" is not allowed; only node:\* and chunks of this bundle may stay external/,
+    );
+  });
+
+  it("rejects a shebang", async () => {
+    const root = await project(BUNDLE_FILES);
+    await expect(
+      build(root, BUNDLES, BUNDLE_INPUT, { ...BUNDLE_OUTPUT, banner: "#!/usr/bin/env node" }),
+    ).rejects.toThrow(/a bundle must not start with a shebang/);
+  });
+
+  it("rejects a non-es format", async () => {
+    const root = await project({ ...BUNDLE_FILES, "src/lib/shared/index.ts": "export const value = 1;\n" });
+    await expect(build(root, BUNDLES, BUNDLE_INPUT, { ...BUNDLE_OUTPUT, format: "cjs" })).rejects.toThrow(
+      /output\.format must be "es", got "cjs"/,
+    );
+  });
+});
+
+describe("bundle imports", () => {
+  const PKG = JSON.stringify({ name: "demo", version: "1.0.0" });
+  const SHARED = "export const greeting = (): string => \"hello\";\n";
+  const LIB = { bundles: { "lib/shared": "src/lib/shared/index.ts" } } as const;
+  const BIN: ClaudeCodeOptions = { ...LIB, scripts: { bin: ["src/bin/one.ts"] } };
+  const BIN_INPUT: Record<string, string> = { "bin/one": "src/bin/one.ts" };
+  const ONE = "import { greeting } from \"../lib/shared/index.js\";\nconsole.log(greeting());\n";
+  const BIN_FILES: Record<string, string> = {
+    "package.json": PKG,
+    "src/lib/shared/index.ts": SHARED,
+    "src/bin/one.ts": ONE,
+  };
+
+  it("rewrites the import of a sibling folder and passes the script checks", async () => {
+    const root = await project(BIN_FILES);
+    const { out, warnings } = await build(root, BIN, BIN_INPUT, MCP_OUTPUT);
+    expect(warnings).toEqual([]);
+    const code = await readFile(join(out, "bin/one.mjs"), "utf8");
+    expect(code).toContain("\"../lib/shared/index.mjs\"");
+    expect(code).not.toContain("hello");
+  });
+
+  it("rewrites an import at the same depth", async () => {
+    const root = await project({
+      ...MCP_FILES,
+      "src/vendor/index.ts": SHARED,
+      "src/server.ts": "import { greeting } from \"./vendor/index.js\";\nconsole.log(greeting());\n",
+    });
+    const { out } = await build(
+      root,
+      { ...MCP_TEMPLATE, bundles: { "mcp/vendor": "src/vendor/index.ts" } },
+      MCP_INPUT,
+      MCP_OUTPUT,
+    );
+    expect(await readFile(join(out, "mcp/server.mjs"), "utf8")).toContain("\"./vendor/index.mjs\"");
+  });
+
+  it("rewrites an import from a deeper output", async () => {
+    const root = await project({
+      "package.json": PKG,
+      "src/lib/shared/index.ts": SHARED,
+      "src/skills/a/x.ts": "import { greeting } from \"../../lib/shared/index.js\";\nconsole.log(greeting());\n",
+      "assets/skills/a/SKILL.md": "Run `node ${CLAUDE_SKILL_DIR}/x.mjs`.\n",
+    });
+    const { out } = await build(
+      root,
+      { ...LIB, scripts: { skills: { a: ["src/skills/a/x.ts"] } } },
+      { "skills/a/x": "src/skills/a/x.ts" },
+      MCP_OUTPUT,
+    );
+    expect(await readFile(join(out, "skills/a/x.mjs"), "utf8")).toContain("\"../../lib/shared/index.mjs\"");
+  });
+
+  it("rewrites an import through an alias", async () => {
+    const root = await project({
+      ...BIN_FILES,
+      "src/bin/one.ts": "import { greeting } from \"@shared\";\nconsole.log(greeting());\n",
+    });
+    const { out } = await build(root, BIN, BIN_INPUT, MCP_OUTPUT, {
+      resolve: { alias: { "@shared": join(root, "src/lib/shared/index.ts") } },
+    });
+    expect(await readFile(join(out, "bin/one.mjs"), "utf8")).toContain("\"../lib/shared/index.mjs\"");
+  });
+
+  it("rewrites a dynamic import", async () => {
+    const root = await project({
+      ...BIN_FILES,
+      "src/bin/one.ts": "const shared = await import(\"../lib/shared/index.js\");\nconsole.log(shared.greeting());\n",
+    });
+    const { out } = await build(root, BIN, BIN_INPUT, MCP_OUTPUT);
+    expect(await readFile(join(out, "bin/one.mjs"), "utf8")).toContain("../lib/shared/index.mjs");
+  });
+
+  it("rejects an import of another file in the bundle source folder", async () => {
+    const root = await project({
+      ...BIN_FILES,
+      "src/lib/shared/helper.ts": "export const helper = 1;\n",
+      "src/bin/one.ts": "import { helper } from \"../lib/shared/helper.js\";\nconsole.log(helper);\n",
+    });
+    await expect(build(root, BIN, BIN_INPUT, MCP_OUTPUT)).rejects.toThrow(
+      /import "\.\.\/lib\/shared\/helper\.js" points into bundle folder of "src\/lib\/shared\/index\.ts"; import "src\/lib\/shared\/index\.ts" instead/,
+    );
+  });
+
+  it("rejects a mod that imports a bundle", async () => {
+    const root = await project({
+      ...MOD_FILES,
+      "src/lib/shared/index.ts": SHARED,
+      "src/register.ts":
+        "import { greeting } from \"./lib/shared/index.js\";\nexport function register(): unknown { return greeting; }\n",
+    });
+    await expect(build(root, { ...TEMPLATE, ...LIB })).rejects.toThrow(
+      /import "\.\.\/lib\/shared\/index\.mjs" is not allowed; only node:\* and claude-code may stay external/,
+    );
+  });
+
+  it("rejects another relative external import in a script", async () => {
+    const root = await project({ ...BIN_FILES, "src/bin/one.ts": "import \"./other.mjs\";\nconsole.log(1);\n" });
+    await expect(
+      build(root, BIN, BIN_INPUT, MCP_OUTPUT, { external: ["claude-code", "./other.mjs"] }),
+    ).rejects.toThrow(/import ".*other\.mjs" is not allowed; only node:\* and bundle entries may stay external/);
+  });
+});
+
+describe("files", () => {
+  it("copies a files source with mode 0644", async () => {
+    const root = await project({ ...PLAIN_FILES, "data/tool.sh": "#!/bin/sh\n" });
+    await chmod(join(root, "data/tool.sh"), 0o755);
+    const { out, warnings } = await build(root, { files: { "lib/tool.sh": "data/tool.sh" } }, PLAIN_INPUT);
+    expect(warnings).toEqual([]);
+    expect(await readFile(join(out, "lib/tool.sh"), "utf8")).toBe("#!/bin/sh\n");
+    expect((await stat(join(out, "lib/tool.sh"))).mode & 0o777).toBe(0o644);
+  });
+
+  it("copies nothing with emitMetadata: false", async () => {
+    const root = await project({ ...PLAIN_FILES, "data/greeting.txt": "hello\n" });
+    const { out } = await build(
+      root,
+      { files: { "greeting.txt": "data/greeting.txt" }, emitMetadata: false },
+      PLAIN_INPUT,
+    );
+    expect(await files(out)).toEqual(["index.js"]);
   });
 });
