@@ -11,7 +11,7 @@ export interface ScriptEntriesResult {
 }
 
 // A non-separator character before the extension rejects an empty basename such as "src/.ts".
-const SCRIPT_SOURCE = /[^/\\]\.m?ts$/;
+export const SCRIPT_SOURCE: RegExp = /[^/\\]\.m?ts$/;
 
 // scripts.bin -> bin/<name>.mjs, scripts.skills -> skills/<skill>/<name>.mjs; pure: no fs, no mutation, no throw.
 export function scriptEntries(config: { readonly scripts?: unknown }): ScriptEntriesResult {

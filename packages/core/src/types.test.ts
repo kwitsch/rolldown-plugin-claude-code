@@ -1,5 +1,5 @@
 import { expect, expectTypeOf, it } from "vitest";
-import type { IssueCode, PackageJson, PluginConfig, PluginManifest } from "./index.js";
+import type { BuildEntry, IssueCode, PackageJson, PluginConfig, PluginManifest } from "./index.js";
 import { ISSUE_CODES } from "./index.js";
 
 // Fresh object literals passed here get excess-property checks.
@@ -70,4 +70,16 @@ it("PluginConfig accepts hooksTemplate, mcpTemplate, manifest, assets and script
   accepts<PluginConfig>({ scripts: { bin: "src/bin/doctor.ts" } });
   // @ts-expect-error
   accepts<PluginConfig>({ scripts: { skills: ["src/skills/dprint/run-dprint.ts"] } });
+});
+
+it("PluginConfig accepts bundles and files as string records and BuildEntry knows bundle", () => {
+  accepts<PluginConfig>({ bundles: { "lib/shared": "src/lib/shared/index.ts" } });
+  accepts<PluginConfig>({ files: { "mcp/main.wasm": "/deps/main.wasm", "lib/greeting.txt": "data/greeting.txt" } });
+  // @ts-expect-error
+  accepts<PluginConfig>({ bundles: ["src/lib/shared/index.ts"] });
+  // @ts-expect-error
+  accepts<PluginConfig>({ files: ["data/greeting.txt"] });
+  accepts<BuildEntry>({ kind: "bundle", source: "src/lib/shared/index.ts", output: "lib/shared/index.mjs" });
+  // @ts-expect-error
+  accepts<BuildEntry>({ kind: "vendor", source: "a.ts", output: "a.mjs" });
 });
