@@ -24,6 +24,8 @@ const SCRIPT: BuildEntry = { kind: "script", source: "pre-tool.ts", output: "hoo
 const MCP_JSON = ".mcp.json";
 const MCP: BuildEntry = { kind: "script", source: "server.ts", output: "mcp/server.mjs" };
 const mcpJsonMissing: Issue = issue("path-missing", `".mcp.json" is missing or not a file`, MCP_JSON);
+const MCP_BUNDLE: BuildEntry = { kind: "bundle", source: "src/vendor/index.ts", output: "mcp/vendor/index.mjs" };
+const HOOKS_BUNDLE: BuildEntry = { kind: "bundle", source: "src/lib/index.ts", output: "hooks/lib/index.mjs" };
 
 const pluginJsonMissing: Issue = issue(
   "path-missing",
@@ -339,6 +341,16 @@ it("reports a missing script output and names its source", async () => {
 it("accepts present mod and script outputs", async () => {
   await build([PLUGIN_JSON, HOOKS_JSON, MOD.output, SCRIPT.output]);
   expect(await check({}, [MOD, SCRIPT])).toEqual([]);
+});
+
+it("does not require .mcp.json or hooks.json for bundles under mcp/ and hooks/", async () => {
+  await build([PLUGIN_JSON, MCP_BUNDLE.output, HOOKS_BUNDLE.output]);
+  expect(await check({}, [MCP_BUNDLE, HOOKS_BUNDLE])).toEqual([]);
+});
+
+it("reports a missing bundle entry", async () => {
+  await build([PLUGIN_JSON]);
+  expect(await check({}, [MCP_BUNDLE])).toEqual([entryMissing(MCP_BUNDLE)]);
 });
 
 // Order
