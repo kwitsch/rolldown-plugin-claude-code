@@ -1,5 +1,5 @@
 import { claudeCode, loadProject } from "@kwitsch/rolldown-plugin-claude-code";
-import { access, stat } from "node:fs/promises";
+import { access, chmod, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { OutExtensionContext, TsdownHooks, UserConfig } from "tsdown";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -79,7 +79,7 @@ describe("config generation", () => {
   it("rejects a project without entries", async () => {
     const root = await project({ "package.json": PKG, "hooks.template.json": JSON.stringify({ hooks: {} }) });
     await expect(pluginConfig({ root, ...TEMPLATE })).rejects.toThrow(
-      /\[claude-code\] 1 problem\n {2}error {2}the project defines no mod, command scripts, MCP servers, bin scripts or skill scripts; nothing to build/,
+      /\[claude-code\] 1 problem\n {2}error {2}the project defines no mod, command scripts, MCP servers, bin scripts, skill scripts or bundles; nothing to build/,
     );
   });
 
@@ -101,6 +101,14 @@ describe("config generation", () => {
     const root = await project(MOD_ONLY);
     await expect(pluginConfig({ root, ...TEMPLATE, outDir: "src" })).rejects.toThrow(/must not contain/);
     await expect(access(join(root, "src/register.ts"))).resolves.toBeUndefined();
+  });
+
+  it("refuses an outDir that holds a files source", async () => {
+    const root = await project({ ...MOD_ONLY, "data/greeting.txt": "hello\n" });
+    await expect(
+      pluginConfig({ root, ...TEMPLATE, files: { "greeting.txt": "data/greeting.txt" }, outDir: "data" }),
+    ).rejects.toThrow(/must not contain/);
+    await expect(access(join(root, "data/greeting.txt"))).resolves.toBeUndefined();
   });
 });
 
@@ -269,5 +277,74 @@ describe("bin and skill scripts", () => {
     await pluginConfig({ root, ...SCRIPTS, strict: false });
     calls = vi.mocked(claudeCode).mock.calls.map(([options]) => options);
     for (const options of calls) expect(options).toMatchObject({ strict: false });
+  });
+});
+
+describe("bundles", () => {
+  const BUNDLE_SOURCES: Record<string, string> = {
+    "src/bin/one.ts": "console.log(1);\n",
+    "src/lib/shared/index.ts": "export const value = 1;\n",
+  };
+  const BUNDLE_OPTIONS = {
+    scripts: { bin: ["src/bin/one.ts"] },
+    bundles: { "lib/shared": "src/lib/shared/index.ts" },
+  };
+
+  it("gives a bundle its own config after the scripts", async () => {
+    const root = await project({ "package.json": PKG, ...BUNDLE_SOURCES });
+    const configs = await pluginConfig({
+      root,
+      ...BUNDLE_OPTIONS,
+      overrides: { outputOptions: { comments: true, exports: "named" } },
+    });
+    expect(configs.map(entryKey)).toEqual(["bin/one", "lib/shared/index"]);
+    const bundle = byKey(configs, "lib/shared/index");
+    expect(bundle).toMatchObject({
+      entry: { "lib/shared/index": join(root, "src/lib/shared/index.ts") },
+      minify: true,
+      deps: { neverBundle: [], alwaysBundle: [/./] },
+      format: "esm",
+      platform: "node",
+      target: "node26",
+      outDir: join(root, "plugin"),
+    });
+    // The bundle fields win; the tsdown options and the user's other outputOptions are kept.
+    expect(typeof bundle.outputOptions).toBe("function");
+    const merged = typeof bundle.outputOptions === "function"
+      ? bundle.outputOptions({ dir: "plugin" }, "es", {} as never)
+      : undefined;
+    expect(merged).toEqual({
+      dir: "plugin",
+      exports: "named",
+      chunkFileNames: "lib/shared/[name]-[hash].mjs",
+      comments: false,
+    });
+    expect(bundle.banner).toBeUndefined();
+    expect(bundle.outExtensions?.({} as OutExtensionContext)).toEqual({ js: ".mjs" });
+    const script = byKey(configs, "bin/one");
+    expect(script.outputOptions).toEqual({ comments: true, exports: "named" });
+    expect(script.banner).toBe("#!/usr/bin/env node");
+    const calls = vi.mocked(claudeCode).mock.calls.map(([options]) => options);
+    expect(calls.map((options) => options?.emitMetadata)).toEqual([true, false]);
+    for (const options of calls) expect(options).toMatchObject({ root, strict: true, ...BUNDLE_OPTIONS });
+  });
+
+  it("keeps the bundle entry and chunks at 0644 after the final check", async () => {
+    vi.stubEnv("PATH", await tempDir());
+    const root = await project({ "package.json": PKG, ...BUNDLE_SOURCES });
+    const configs = await pluginConfig({ root, ...BUNDLE_OPTIONS });
+    const loaded = await loadProject({ root, ...BUNDLE_OPTIONS });
+    const outDir = join(root, "plugin");
+    await writeValidTree(outDir, loaded);
+    const chunk = join(outDir, "lib/shared/heavy-abc123.mjs");
+    await writeFile(chunk, "export {};\n");
+    await chmod(chunk, 0o644);
+    const logger = { info: vi.fn(), warn: vi.fn() };
+    const ctx = { options: { logger } } as unknown as Parameters<TsdownHooks["build:done"]>[0];
+    for (const config of configs) await expect(doneHook(config)?.(ctx)).resolves.toBeUndefined();
+    const mode = async (file: string): Promise<number> => (await stat(join(outDir, file))).mode & 0o777;
+    expect(await mode("bin/one.mjs")).toBe(0o755);
+    expect(await mode("lib/shared/index.mjs")).toBe(0o644);
+    expect(await mode("lib/shared/heavy-abc123.mjs")).toBe(0o644);
   });
 });

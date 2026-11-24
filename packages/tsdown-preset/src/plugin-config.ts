@@ -1,7 +1,7 @@
 import type { PluginConfig } from "@kwitsch/claude-code-plugin-core";
 import { claudeCode, formatProblems, loadProject } from "@kwitsch/rolldown-plugin-claude-code";
 import { readFile, rm } from "node:fs/promises";
-import { extname, isAbsolute, relative, resolve, sep } from "node:path";
+import { extname, isAbsolute, posix, relative, resolve, sep } from "node:path";
 import type { TsdownHooks, UserConfig } from "tsdown";
 import { finalCheck } from "./final-check.js";
 
@@ -27,14 +27,18 @@ export async function pluginConfig(options: PresetOptions = {}): Promise<UserCon
   if (project.entries.length === 0) {
     throw new Error(
       formatProblems([
-        "error  the project defines no mod, command scripts, MCP servers, bin scripts or skill scripts; nothing to build",
+        "error  the project defines no mod, command scripts, MCP servers, bin scripts, skill scripts or bundles; nothing to build",
       ]),
     );
   }
 
   const out = resolve(project.root, outDir);
   // Data-loss guard: rm below must never remove the project root, an ancestor, or a directory holding a source.
-  const protectedPaths = [project.root, ...project.entries.map((entry) => entry.sourcePath)];
+  const protectedPaths = [
+    project.root,
+    ...project.entries.map((entry) => entry.sourcePath),
+    ...project.files.map((file) => file.source),
+  ];
   const contains = (path: string): boolean => {
     const rel = relative(out, path);
     return !(rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel));
@@ -46,7 +50,7 @@ export async function pluginConfig(options: PresetOptions = {}): Promise<UserCon
 
   // An unreadable source counts as "no shebang"; the plugin reports it as path-missing.
   const banners = await Promise.all(project.entries.map(async (entry) => {
-    if (entry.kind === "mod") return undefined;
+    if (entry.kind !== "script") return undefined;
     const source = await readFile(entry.sourcePath, "utf8").catch(() => "");
     return source.startsWith("#!") ? undefined : SHEBANG;
   }));
@@ -71,7 +75,9 @@ export async function pluginConfig(options: PresetOptions = {}): Promise<UserCon
       minify: mod ? { compress: true, mangle: false } : true,
       banner: banners[i],
       deps: { neverBundle: mod ? ["claude-code"] : [], alwaysBundle: [/./] },
-      plugins: [claudeCode({ ...projectOptions, root: project.root, emitMetadata: i === 0, strict })],
+      plugins: [
+        claudeCode({ ...projectOptions, root: project.root, emitMetadata: i === 0, strict, output: entry.output }),
+      ],
       format: "esm",
       platform: "node",
       target: "node26",
@@ -81,6 +87,19 @@ export async function pluginConfig(options: PresetOptions = {}): Promise<UserCon
       dts: false,
       sourcemap: false,
       hooks,
+      // Bundle chunks stay in the bundle folder; comments may carry machine-specific module paths.
+      // User outputOptions stay; the two bundle fields win.
+      ...(entry.kind === "bundle"
+        ? {
+          outputOptions: ((options, format, context) => ({
+            ...(typeof overrides.outputOptions === "function"
+              ? overrides.outputOptions(options, format, context)
+              : { ...options, ...overrides.outputOptions }),
+            chunkFileNames: `${posix.dirname(entry.output)}/[name]-[hash].mjs`,
+            comments: false,
+          })) satisfies Extract<UserConfig["outputOptions"], Function>,
+        }
+        : {}),
     };
   });
 }

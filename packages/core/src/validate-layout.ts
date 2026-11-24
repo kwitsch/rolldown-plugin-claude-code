@@ -83,10 +83,12 @@ export async function validateLayout(input: LayoutInput): Promise<readonly Issue
     }
   }
 
-  if (entries.some((entry) => entry.output.startsWith(`${OUTPUT_DIRS.hooks}/`))) {
+  // Bundles are shared code, not hooks or MCP servers: they never require hooks.json or .mcp.json.
+  const built = entries.filter((entry) => entry.kind !== "bundle");
+  if (built.some((entry) => entry.output.startsWith(`${OUTPUT_DIRS.hooks}/`))) {
     await requireFile("hooks/hooks.json", `${show("hooks/hooks.json")} is missing or not a file`);
   }
-  if (entries.some((entry) => entry.output.startsWith(`${OUTPUT_DIRS.mcp}/`))) {
+  if (built.some((entry) => entry.output.startsWith(`${OUTPUT_DIRS.mcp}/`))) {
     await requireFile(".mcp.json", `${show(".mcp.json")} is missing or not a file`);
   }
   for (const entry of entries) {

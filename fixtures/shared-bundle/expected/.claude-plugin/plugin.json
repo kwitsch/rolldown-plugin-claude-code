@@ -1,0 +1,9 @@
+{
+  "name": "shared-bundle",
+  "version": "0.0.0",
+  "description": "Fixture: two bin scripts sharing a bundle with a lazily loaded chunk and a copied file, built with tsdown and the preset.",
+  "author": {
+    "name": "Kwitsch"
+  },
+  "license": "MIT"
+}

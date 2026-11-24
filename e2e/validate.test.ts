@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { fixturePlugin, validatePlugin } from "./claude.js";
 
-it.each(["mod-only", "script-only", "mod-and-script", "mcp-server", "bin-and-skill"])(
+it.each(["mod-only", "script-only", "mod-and-script", "mcp-server", "bin-and-skill", "shared-bundle"])(
   "%s passes validate --strict",
   (name) => {
     const { status, report } = validatePlugin(fixturePlugin(name));
