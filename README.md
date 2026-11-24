@@ -146,13 +146,13 @@ plugin/
 Bundle rules:
 
 - Import only the bundle's source entry; it is the bundle's only interface. Importing another file from the entry's folder fails the build, because that code would be inlined a second time.
-- A bundle is ESM, fully minified, without comments, without a shebang and keeps mode `0644`. Dependencies are inlined, dynamic `import()` is allowed, and only `node:*` imports and the bundle's own chunks stay external.
+- A bundle is ESM, fully minified, without comments, without a shebang and keeps mode `0644`. Dependencies are inlined, dynamic `import()` is allowed, and only `node:*` imports and the bundle's own chunks stay external. The preset sets tsdown's `nodeProtocol: true` for every build, so a bare builtin import such as `fs` in a dependency becomes `node:fs`; `overrides.nodeProtocol` changes it.
 - Two bundle folders must not be equal or nested, and no other entry output, asset or `.mjs` file from `files` may lie inside a bundle folder (`entry-conflict`): chunk names are not known before the build.
 - Mods must not import a bundle; such an import fails the build.
 
 `files` rules:
 
-- A copy gets mode `0755` when its source is executable by the owner and `0644` otherwise; no other mode bits are kept.
+- Every copy gets mode `0644`, whatever the mode of its source; put a file that must stay executable into `assets`.
 - Only single files are copied; a missing source or a directory is `path-missing`. Put whole folders into `assets` or list their files.
 - A target must be relative without `..` (`path-invalid`) and must not equal a generated file, an entry output or an asset (`entry-conflict`). Non-`.mjs` files may go into a bundle folder, next to its chunks.
 - Copies happen in the build that writes the metadata, after the assets; in watch mode every source is watched.

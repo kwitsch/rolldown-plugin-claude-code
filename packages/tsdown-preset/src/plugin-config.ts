@@ -69,6 +69,8 @@ export async function pluginConfig(options: PresetOptions = {}): Promise<UserCon
   return project.entries.map((entry, i): UserConfig => {
     const mod = entry.kind === "mod";
     return {
+      // Bundled dependencies often import builtins bare ("fs"); the layout check allows only node:*.
+      nodeProtocol: true,
       ...overrides,
       entry: { [entry.output.slice(0, -extname(entry.output).length)]: entry.sourcePath },
       outExtensions: () => ({ js: mod ? ".js" : ".mjs" }),

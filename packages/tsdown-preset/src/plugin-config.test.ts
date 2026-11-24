@@ -160,6 +160,14 @@ describe("overrides", () => {
     });
     expect(config).toMatchObject({ alias: { a: "b" }, minify: { compress: true, mangle: false }, format: "esm" });
   });
+
+  it("sets nodeProtocol unless overrides change it", async () => {
+    const root = await project(MOD_ONLY);
+    const [config] = await pluginConfig({ root, ...TEMPLATE });
+    expect(config?.nodeProtocol).toBe(true);
+    const [overridden] = await pluginConfig({ root, ...TEMPLATE, overrides: { nodeProtocol: false } });
+    expect(overridden?.nodeProtocol).toBe(false);
+  });
 });
 
 describe("final check", () => {

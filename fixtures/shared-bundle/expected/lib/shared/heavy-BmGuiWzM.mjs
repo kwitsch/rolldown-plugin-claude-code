@@ -1,1 +1,0 @@
-function e(){return`heavy`}export{e as heavy};

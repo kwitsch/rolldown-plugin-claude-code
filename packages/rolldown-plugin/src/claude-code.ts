@@ -1,6 +1,7 @@
 import type { FileCopy, Issue } from "@kwitsch/claude-code-plugin-core";
 import { validateLayout } from "@kwitsch/claude-code-plugin-core";
 import { chmod, copyFile, mkdir, stat } from "node:fs/promises";
+import { builtinModules } from "node:module";
 import { dirname, extname, join, posix, resolve, sep } from "node:path";
 import type { OutputChunk, Plugin, PluginContext } from "rolldown";
 import type { LoadedProject, ProjectOptions, ResolvedEntry } from "./load-project.js";
@@ -50,6 +51,14 @@ function relativeSpecifier(from: string, to: string): string {
   return rel.startsWith("../") ? rel : `./${rel}`;
 }
 
+// A bare Node builtin gets a hint: the layout only allows the "node:" form, and tsdown's nodeProtocol option rewrites it.
+function notAllowed(id: string, allowed: string): string {
+  const hint = builtinModules.includes(id)
+    ? `; "${id}" is a Node builtin, import "node:${id}" instead (tsdown option nodeProtocol: true rewrites bundled dependencies)`
+    : "";
+  return `import "${id}" is not allowed; ${allowed} may stay external${hint}`;
+}
+
 // A bundle is its entry chunk plus any chunks it loads, all inside its output folder.
 function checkBundle(
   chunks: readonly OutputChunk[],
@@ -71,7 +80,7 @@ function checkBundle(
     }
     for (const id of [...chunk.imports, ...chunk.dynamicImports]) {
       if (!id.startsWith("node:") && !own.has(id)) {
-        line(chunk.fileName, `import "${id}" is not allowed; only node:* and chunks of this bundle may stay external`);
+        line(chunk.fileName, notAllowed(id, "only node:* and chunks of this bundle"));
       }
     }
     if (chunk.code.startsWith("#!")) line(chunk.fileName, "a bundle must not start with a shebang");
@@ -115,7 +124,7 @@ function checkChunk(chunks: readonly OutputChunk[], entries: readonly ResolvedEn
     : "only node:*";
   for (const id of [...chunk.imports, ...chunk.dynamicImports]) {
     if (!id.startsWith("node:") && !(entry.kind === "mod" && id === "claude-code") && !bundleImports.includes(id)) {
-      line(`import "${id}" is not allowed; ${allowed} may stay external`);
+      line(notAllowed(id, allowed));
     }
   }
   const shebang = chunk.code.startsWith("#!");
@@ -140,18 +149,13 @@ function ownEntry(
 }
 
 // Per-file copy: no empty directories, explicit chmod so the umask never changes the mode.
-// Without a mode the source mode is kept; "normalized" maps it to 0755 (owner-executable source) or 0644.
-async function copyInto(
-  outDir: string,
-  pairs: readonly FileCopy[],
-  mode?: "normalized",
-): Promise<void> {
+// Without a mode the source mode is kept.
+async function copyInto(outDir: string, pairs: readonly FileCopy[], mode?: number): Promise<void> {
   await Promise.all(pairs.map(async ({ source, output }) => {
     const target = join(outDir, output);
     await mkdir(dirname(target), { recursive: true });
     await copyFile(source, target);
-    const sourceMode = (await stat(source)).mode;
-    await chmod(target, mode === undefined ? sourceMode : sourceMode & 0o100 ? 0o755 : 0o644);
+    await chmod(target, mode ?? (await stat(source)).mode);
   }));
 }
 
@@ -239,8 +243,8 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
       const outDir = resolve(outputOptions.dir);
       await Promise.all([
         copyInto(outDir, loaded.assets.map((asset) => ({ source: join(loaded.assetsDir, asset), output: asset }))),
-        // Only the owner-executable bit of the source survives, so a helper script stays runnable.
-        copyInto(outDir, loaded.files, "normalized"),
+        // A files copy is data: mode 0644 whatever the source mode, so the output does not depend on the package store.
+        copyInto(outDir, loaded.files, 0o644),
       ]);
       if (loaded.manifest === undefined) return;
       const issues = await validateLayout({ outDir, manifest: loaded.manifest, entries: entry ? [entry] : [] });
