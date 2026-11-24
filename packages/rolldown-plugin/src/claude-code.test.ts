@@ -229,7 +229,7 @@ describe("output checks", () => {
         "import { readFileSync } from \"fs\";\nexport function register(): unknown { return readFileSync; }\n",
     });
     await expect(build(root, TEMPLATE)).rejects.toThrow(
-      /import "fs" is not allowed; only node:\* and claude-code may stay external/,
+      /import "fs" is not allowed; only node:\* and claude-code may stay external; "fs" is a Node builtin, import "node:fs" instead \(tsdown option nodeProtocol: true/,
     );
   });
 

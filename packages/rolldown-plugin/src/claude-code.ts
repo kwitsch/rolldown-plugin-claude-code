@@ -1,6 +1,7 @@
 import type { FileCopy, Issue } from "@kwitsch/claude-code-plugin-core";
 import { validateLayout } from "@kwitsch/claude-code-plugin-core";
 import { chmod, copyFile, mkdir, stat } from "node:fs/promises";
+import { builtinModules } from "node:module";
 import { dirname, extname, join, posix, resolve, sep } from "node:path";
 import type { OutputChunk, Plugin, PluginContext } from "rolldown";
 import type { LoadedProject, ProjectOptions, ResolvedEntry } from "./load-project.js";
@@ -50,6 +51,14 @@ function relativeSpecifier(from: string, to: string): string {
   return rel.startsWith("../") ? rel : `./${rel}`;
 }
 
+// A bare Node builtin gets a hint: the layout only allows the "node:" form, and tsdown's nodeProtocol option rewrites it.
+function notAllowed(id: string, allowed: string): string {
+  const hint = builtinModules.includes(id)
+    ? `; "${id}" is a Node builtin, import "node:${id}" instead (tsdown option nodeProtocol: true rewrites bundled dependencies)`
+    : "";
+  return `import "${id}" is not allowed; ${allowed} may stay external${hint}`;
+}
+
 // A bundle is its entry chunk plus any chunks it loads, all inside its output folder.
 function checkBundle(
   chunks: readonly OutputChunk[],
@@ -71,7 +80,7 @@ function checkBundle(
     }
     for (const id of [...chunk.imports, ...chunk.dynamicImports]) {
       if (!id.startsWith("node:") && !own.has(id)) {
-        line(chunk.fileName, `import "${id}" is not allowed; only node:* and chunks of this bundle may stay external`);
+        line(chunk.fileName, notAllowed(id, "only node:* and chunks of this bundle"));
       }
     }
     if (chunk.code.startsWith("#!")) line(chunk.fileName, "a bundle must not start with a shebang");
@@ -115,7 +124,7 @@ function checkChunk(chunks: readonly OutputChunk[], entries: readonly ResolvedEn
     : "only node:*";
   for (const id of [...chunk.imports, ...chunk.dynamicImports]) {
     if (!id.startsWith("node:") && !(entry.kind === "mod" && id === "claude-code") && !bundleImports.includes(id)) {
-      line(`import "${id}" is not allowed; ${allowed} may stay external`);
+      line(notAllowed(id, allowed));
     }
   }
   const shebang = chunk.code.startsWith("#!");
