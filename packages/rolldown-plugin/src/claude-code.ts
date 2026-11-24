@@ -140,18 +140,13 @@ function ownEntry(
 }
 
 // Per-file copy: no empty directories, explicit chmod so the umask never changes the mode.
-// Without a mode the source mode is kept; "normalized" maps it to 0755 (owner-executable source) or 0644.
-async function copyInto(
-  outDir: string,
-  pairs: readonly FileCopy[],
-  mode?: "normalized",
-): Promise<void> {
+// Without a mode the source mode is kept.
+async function copyInto(outDir: string, pairs: readonly FileCopy[], mode?: number): Promise<void> {
   await Promise.all(pairs.map(async ({ source, output }) => {
     const target = join(outDir, output);
     await mkdir(dirname(target), { recursive: true });
     await copyFile(source, target);
-    const sourceMode = (await stat(source)).mode;
-    await chmod(target, mode === undefined ? sourceMode : sourceMode & 0o100 ? 0o755 : 0o644);
+    await chmod(target, mode ?? (await stat(source)).mode);
   }));
 }
 
@@ -239,8 +234,8 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
       const outDir = resolve(outputOptions.dir);
       await Promise.all([
         copyInto(outDir, loaded.assets.map((asset) => ({ source: join(loaded.assetsDir, asset), output: asset }))),
-        // Only the owner-executable bit of the source survives, so a helper script stays runnable.
-        copyInto(outDir, loaded.files, "normalized"),
+        // A files copy is data: mode 0644 whatever the source mode, so the output does not depend on the package store.
+        copyInto(outDir, loaded.files, 0o644),
       ]);
       if (loaded.manifest === undefined) return;
       const issues = await validateLayout({ outDir, manifest: loaded.manifest, entries: entry ? [entry] : [] });

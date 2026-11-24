@@ -597,7 +597,7 @@ describe("bundle imports", () => {
 });
 
 describe("files", () => {
-  it("copies a files source with mode 0644, or 0755 when the source is executable", async () => {
+  it("copies a files source with mode 0644 whatever the source mode", async () => {
     const root = await project({ ...PLAIN_FILES, "data/tool.sh": "#!/bin/sh\n", "data/plain.txt": "x\n" });
     await chmod(join(root, "data/tool.sh"), 0o755);
     await chmod(join(root, "data/plain.txt"), 0o664);
@@ -608,7 +608,7 @@ describe("files", () => {
     );
     expect(warnings).toEqual([]);
     expect(await readFile(join(out, "lib/tool.sh"), "utf8")).toBe("#!/bin/sh\n");
-    expect((await stat(join(out, "lib/tool.sh"))).mode & 0o777).toBe(0o755);
+    expect((await stat(join(out, "lib/tool.sh"))).mode & 0o777).toBe(0o644);
     expect((await stat(join(out, "lib/plain.txt"))).mode & 0o777).toBe(0o644);
   });
 
