@@ -1,5 +1,11 @@
 # @kwitsch/claude-code-plugin-core
 
+## 0.2.0
+
+### Minor Changes
+
+- 36cc936: Add the `bundles` option for shared multi-chunk bundles imported by several scripts, and the `files` option for copying single files to fixed output paths.
+
 ## 0.1.2
 
 ### Patch Changes

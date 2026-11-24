@@ -1,6 +1,6 @@
 {
   "name": "@kwitsch/claude-code-plugin-core",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Bundler-neutral core for building Claude Code plugins.",
   "keywords": ["claude-code", "claude-code-plugin", "plugin-builder"],
   "repository": {
