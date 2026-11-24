@@ -146,7 +146,7 @@ plugin/
 Bundle rules:
 
 - Import only the bundle's source entry; it is the bundle's only interface. Importing another file from the entry's folder fails the build, because that code would be inlined a second time.
-- A bundle is ESM, fully minified, without comments, without a shebang and keeps mode `0644`. Dependencies are inlined, dynamic `import()` is allowed, and only `node:*` imports and the bundle's own chunks stay external.
+- A bundle is ESM, fully minified, without comments, without a shebang and keeps mode `0644`. Dependencies are inlined, dynamic `import()` is allowed, and only `node:*` imports and the bundle's own chunks stay external. The preset sets tsdown's `nodeProtocol: true` for every build, so a bare builtin import such as `fs` in a dependency becomes `node:fs`; `overrides.nodeProtocol` changes it.
 - Two bundle folders must not be equal or nested, and no other entry output, asset or `.mjs` file from `files` may lie inside a bundle folder (`entry-conflict`): chunk names are not known before the build.
 - Mods must not import a bundle; such an import fails the build.
 

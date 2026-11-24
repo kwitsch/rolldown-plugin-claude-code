@@ -1,1 +1,1 @@
-import{readFileSync as e}from"node:fs";function t(){return e(new URL(`./greeting.txt`,import.meta.url),`utf8`).trim()}async function n(){return(await import(`./heavy-BmGuiWzM.mjs`)).heavy()}export{t as greeting,n as loadHeavy};
+import{readFileSync as e}from"node:fs";function t(){return e(new URL(`./greeting.txt`,import.meta.url),`utf8`).trim()}async function n(){return(await import(`./heavy-BQ-Iz8pG.mjs`)).heavy()}export{t as greeting,n as loadHeavy};

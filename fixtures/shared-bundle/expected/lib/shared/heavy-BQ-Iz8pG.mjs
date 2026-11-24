@@ -1,0 +1,1 @@
+import{basename as e}from"node:path";function t(){return e(`/lib/heavy`)}export{t as heavy};
