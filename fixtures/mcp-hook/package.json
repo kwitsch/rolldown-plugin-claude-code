@@ -1,0 +1,19 @@
+{
+  "name": "@fixtures/mcp-hook",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fixture: a plugin with a mod and mcp_tool hooks whose input types the CLI generates, built with tsdown and the preset.",
+  "license": "MIT",
+  "author": "Kwitsch",
+  "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "test": "diff -r expected plugin"
+  },
+  "dependencies": {
+    "@kwitsch/tsdown-preset-claude-code": "workspace:*"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:"
+  }
+}

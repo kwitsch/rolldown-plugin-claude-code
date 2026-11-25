@@ -1,5 +1,12 @@
 {
-  "excludes": ["**/node_modules", "**/dist", "pnpm-lock.yaml", "fixtures/*/expected", "fixtures/*/plugin"],
+  "excludes": [
+    "**/node_modules",
+    "**/dist",
+    "pnpm-lock.yaml",
+    "fixtures/*/expected",
+    "fixtures/*/plugin",
+    "fixtures/mcp-hook/src/hook-types.d.ts"
+  ],
   "plugins": [
     "npm:@dprint/typescript@0.101.0",
     "npm:@dprint/json@0.26.0",

@@ -1,0 +1,1 @@
+function register(_on,_options){}export{register};

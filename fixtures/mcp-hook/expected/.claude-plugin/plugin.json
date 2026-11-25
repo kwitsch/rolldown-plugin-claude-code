@@ -1,0 +1,9 @@
+{
+  "name": "mcp-hook",
+  "version": "0.0.0",
+  "description": "Fixture: a plugin with a mod and mcp_tool hooks whose input types the CLI generates, built with tsdown and the preset.",
+  "author": {
+    "name": "Kwitsch"
+  },
+  "license": "MIT"
+}
