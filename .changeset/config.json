@@ -1,13 +1,6 @@
 {
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [
-    [
-      "@kwitsch/claude-code-plugin-core",
-      "@kwitsch/rolldown-plugin-claude-code",
-      "@kwitsch/tsdown-preset-claude-code"
-    ]
-  ],
   "linked": [],
   "access": "public",
   "baseBranch": "main",

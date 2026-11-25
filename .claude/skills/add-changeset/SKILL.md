@@ -19,6 +19,6 @@ argument-hint: <patch|minor|empty> <one sentence of user-visible change>
    Breaking: one or two English sentences about what a user sees, with a short example if an option changed.
    ```
 
-   List only the packages actually affected; the fixed group lifts all three anyway. Empty variant: front matter containing nothing between the two `---` lines.
+   List only the packages whose users see the change; each package versions independently, and Changesets also bumps every dependent of a listed package. Empty variant: front matter containing nothing between the two `---` lines.
 3. Run `pnpm exec changeset status` and `pnpm format:check`.
 4. Commit as `chore: add changeset for <topic>`. Never touch `version` fields or `CHANGELOG.md`.
