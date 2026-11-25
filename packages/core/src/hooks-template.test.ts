@@ -393,3 +393,33 @@ it("does not mutate a frozen template", () => {
   expect(result.hooksJson).not.toBe(template);
   expect(result.issues).toEqual([]);
 });
+
+it.each([
+  ["src/hook-types.ts", "src/hook-types.ts"],
+  ["./types/hooks.mts", "types/hooks.mts"],
+  ["src/hook-types.d.ts", "src/hook-types.d.ts"],
+])("accepts hookTypes %j, returns it normalized and drops it from hooks.json", (value, normalized) => {
+  const result = renderHooksTemplate({ hookTypes: value, hooks: {} });
+  expect(result.hookTypes).toBe(normalized);
+  expect(result.issues).toEqual([]);
+  expectJson(result, { hooks: {} });
+});
+
+it.each([1, "/abs/types.ts", "src/types.js"])("reports the invalid hookTypes %j and drops it", (value) => {
+  const result = renderHooksTemplate({ hookTypes: value, hooks: {} });
+  expect(result.hookTypes).toBeUndefined();
+  expect(result.issues).toEqual([
+    issue(
+      "error",
+      "template-invalid",
+      `hookTypes ${JSON.stringify(value)}: must be a relative path to a .ts, .mts or .d.ts file`,
+      ["hookTypes"],
+    ),
+  ]);
+  expectJson(result, { hooks: {} });
+});
+
+it("returns hookTypes undefined for a template without it and for a non-object template", () => {
+  expect(renderHooksTemplate(example()).hookTypes).toBeUndefined();
+  expect(renderHooksTemplate(null).hookTypes).toBeUndefined();
+});

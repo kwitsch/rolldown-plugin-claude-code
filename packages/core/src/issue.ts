@@ -14,6 +14,8 @@ export const ISSUE_CODES = [
   "entry-conflict",
   "field-type",
   "entry-unused",
+  "hook-input-invalid",
+  "hook-types-stale",
 ] as const;
 
 export type IssueCode = (typeof ISSUE_CODES)[number];
