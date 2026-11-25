@@ -1,5 +1,11 @@
 # @kwitsch/claude-code-plugin-core
 
+## 0.4.0
+
+### Minor Changes
+
+- d654012: Add `renderHookInputTypes`, which generates TypeScript types for the `input` of `mcp_tool` hooks, the hooks template field `hookTypes`, and the issue codes `hook-input-invalid` and `hook-types-stale`.
+
 ## 0.3.0
 
 No changes in this release.
