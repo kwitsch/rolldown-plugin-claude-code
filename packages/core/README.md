@@ -72,22 +72,22 @@ Exported types: `PluginConfig` (the project options shared by the preset and the
 
 An `Issue` has a `severity` (`"error"` or `"warning"`), a `code`, a `message` and optionally the JSON `path` inside the checked object and the `file` it belongs to. `ISSUE_CODES` lists every code:
 
-| Code                 | Meaning                                                                                                               |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `name-missing`       | `package.json` has no usable name and `manifest.name` is not set; no manifest is produced.                            |
-| `name-invalid`       | The plugin name is not a valid name (error) or not kebab-case (warning).                                              |
-| `name-reserved`      | The plugin name uses a word reserved for official plugins, such as `claude` or `anthropic`.                           |
-| `author-invalid`     | The author has no name.                                                                                               |
-| `homepage-invalid`   | `homepage` is not a valid URL.                                                                                        |
-| `repository-invalid` | `repository` is not an `http(s)` URL; it is left out of the manifest.                                                 |
-| `field-unknown`      | The manifest has a field Claude Code does not know (warning).                                                         |
-| `field-type`         | A manifest field has the wrong type.                                                                                  |
-| `path-invalid`       | A path is absolute, contains `..`, or points to a file where a directory is expected (or the reverse).                |
-| `path-missing`       | A template, source, assets folder, `SKILL.md` or built file does not exist.                                           |
-| `template-invalid`   | A template is not valid JSON or has an invalid field, such as arguments inside `command` or a hand-written `modules`. |
-| `entry-conflict`     | Two entries, files or bundles would write the same output, or an output lies inside a bundle folder.                  |
-| `entry-unused`       | A skill script is not named in its `SKILL.md` (warning).                                                              |
-| `hook-input-invalid` | With `hookTypes` set, an `mcp_tool` hook lacks a string `server`, a string `tool` or an object `input`.               |
-| `hook-types-stale`   | The file named by `hookTypes` is missing or differs from what the template generates.                                 |
+| Code                 | Meaning                                                                                                                                                                                                                 |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name-missing`       | `package.json` has no usable name and `manifest.name` is not set; no manifest is produced.                                                                                                                              |
+| `name-invalid`       | The plugin name is not a valid name (error) or not kebab-case (warning).                                                                                                                                                |
+| `name-reserved`      | The plugin name uses a word reserved for official plugins, such as `claude` or `anthropic`.                                                                                                                             |
+| `author-invalid`     | The author has no name.                                                                                                                                                                                                 |
+| `homepage-invalid`   | `homepage` is not a valid URL.                                                                                                                                                                                          |
+| `repository-invalid` | `repository` is not an `http(s)` URL; it is left out of the manifest.                                                                                                                                                   |
+| `field-unknown`      | The manifest has a field Claude Code does not know (warning).                                                                                                                                                           |
+| `field-type`         | A manifest field or a `scripts`, `bundles` or `files` value has the wrong type.                                                                                                                                         |
+| `path-invalid`       | A path is absolute, contains `..`, is not a `.ts`/`.mts` source where one is required, or points to a file where a directory is expected (or the reverse); a symlink in the assets folder is skipped with this warning. |
+| `path-missing`       | A template, source, assets folder, `SKILL.md` or built file does not exist.                                                                                                                                             |
+| `template-invalid`   | A template is not valid JSON or has an invalid field, such as arguments inside `command` or a hand-written `modules`.                                                                                                   |
+| `entry-conflict`     | Two entries, files or bundles would write the same output, or an output lies inside a bundle folder.                                                                                                                    |
+| `entry-unused`       | A skill script is not named in its `SKILL.md` (warning).                                                                                                                                                                |
+| `hook-input-invalid` | With `hookTypes` set, an `mcp_tool` hook lacks a string `server`, a string `tool` or an object `input`.                                                                                                                 |
+| `hook-types-stale`   | The file named by `hookTypes` is missing or differs from what the template generates.                                                                                                                                   |
 
 Releases are published from GitHub Actions with npm provenance: the package page on npmjs links the commit and the workflow run that built each version.

@@ -14,7 +14,8 @@ Requires Node 26 or newer.
 
 A hook of type `mcp_tool` calls a tool of an MCP server with the object in its `input`. Set `hookTypes` in the hooks template to get a generated TypeScript file that describes that object for every server and tool, so the tool implementation can type its arguments:
 
-```json
+```jsonc
+// hooks.template.json
 {
   "hookTypes": "src/hook-types.d.ts",
   "hooks": {
@@ -92,7 +93,8 @@ claude-code-hook-types [--check] [template]
 
 Run it before type checking and building:
 
-```json
+```jsonc
+// package.json
 {
   "scripts": {
     "pretypecheck": "claude-code-hook-types",

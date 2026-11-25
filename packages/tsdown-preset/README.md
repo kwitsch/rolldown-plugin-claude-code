@@ -36,7 +36,8 @@ import { pluginConfig } from "@kwitsch/tsdown-preset-claude-code";
 export default await pluginConfig({ hooksTemplate: "hooks.template.json" });
 ```
 
-```json
+```jsonc
+// hooks.template.json
 {
   "mod": "./src/register.ts",
   "hooks": {
@@ -62,7 +63,8 @@ export default await pluginConfig({ hooksTemplate: "hooks.template.json" });
 }
 ```
 
-```json
+```jsonc
+// package.json
 {
   "name": "@acme/my-plugin",
   "version": "1.0.0",
@@ -86,7 +88,8 @@ plugin/
 └─ skills/hello/SKILL.md        # copied from assets
 ```
 
-```json
+```jsonc
+// plugin/hooks/hooks.json
 {
   "modules": ["./register.js"],
   "hooks": {

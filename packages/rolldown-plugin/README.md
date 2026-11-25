@@ -16,7 +16,8 @@ Requires Node 26 or newer and Rolldown `^1.3.0`.
 
 A plugin with one mod:
 
-```json
+```jsonc
+// hooks.template.json
 {
   "mod": "./src/register.ts",
   "hooks": {}
@@ -31,6 +32,7 @@ import { defineConfig } from "rolldown";
 export default defineConfig({
   input: { "hooks/register": "src/register.ts" },
   platform: "node",
+  external: ["claude-code"],
   plugins: [claudeCode({ hooksTemplate: "hooks.template.json" })],
   output: {
     dir: "plugin",
@@ -95,7 +97,7 @@ Here the hooks template has `"mod": "./src/register.ts"` and a command hook `"co
 - **One chunk:** a mod or script build must produce exactly one chunk; only a bundle may load chunks with `import()`, named `<folder>/[name]-[hash].mjs`.
 - **Imports:** a mod keeps only `claude-code` and `node:*` external, a script only `node:*` and bundle entries, a bundle only `node:*` and its own chunks. Claude Code accepts only relative imports and `claude-code` in a mod, so keep `node:*` out of mods.
 - **Shebang:** scripts must start with `#!/usr/bin/env node`, mods and bundles must not.
-- **File modes:** Rolldown does not make scripts executable; run `chmod 755` on built scripts if they are started directly (the preset does this for you).
+- **File modes:** the plugin sets no file mode on built entries. Hooks and MCP servers start via `node` and need none; run `chmod 755` on built `bin` scripts yourself (the preset does this for every script).
 
 ## Options
 
