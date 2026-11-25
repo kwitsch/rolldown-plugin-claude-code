@@ -1,0 +1,31 @@
+{
+  "name": "@kwitsch/claude-code-plugin-cli",
+  "version": "0.0.0",
+  "description": "Command-line tools for Claude Code plugin projects.",
+  "keywords": ["claude-code", "claude-code-plugin", "plugin-builder"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kwitsch/rolldown-plugin-claude-code.git",
+    "directory": "packages/cli"
+  },
+  "license": "MIT",
+  "type": "module",
+  "bin": { "claude-code-hook-types": "./dist/index.mjs" },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@kwitsch/claude-code-plugin-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": { "node": ">=26" },
+  "publishConfig": { "access": "public" }
+}
