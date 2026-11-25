@@ -1,5 +1,16 @@
 # @kwitsch/rolldown-plugin-claude-code
 
+## 0.4.0
+
+### Minor Changes
+
+- d654012: The build fails with `hook-types-stale` when the hooks template sets `hookTypes` and that file is missing or differs from the generated hook input types.
+
+### Patch Changes
+
+- Updated dependencies [d654012]
+  - @kwitsch/claude-code-plugin-core@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes
