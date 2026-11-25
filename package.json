@@ -11,6 +11,7 @@
     "format": "dprint fmt",
     "format:check": "dprint check",
     "lint": "oxlint",
+    "hook-types:check": "node packages/cli/dist/index.mjs --check fixtures/mcp-hook/hooks.template.json",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "pnpm --filter \"./packages/*\" build && changeset publish"

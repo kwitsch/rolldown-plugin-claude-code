@@ -9,6 +9,7 @@ import type {
 import {
   bundleEntries,
   pluginManifest,
+  renderHookInputTypes,
   renderHooksTemplate,
   renderMcpTemplate,
   scriptEntries,
@@ -100,7 +101,7 @@ async function loadTemplate<T extends { readonly entries: readonly BuildEntry[];
   render: (template: unknown) => T,
   issues: Issue[],
   entries: ResolvedEntry[],
-): Promise<T | undefined> {
+): Promise<(T & { readonly template: unknown }) | undefined> {
   const templatePath = resolve(root, file);
   const template = await parseTemplate(file, templatePath, label, issues);
   if (template === undefined) return undefined;
@@ -112,7 +113,41 @@ async function loadTemplate<T extends { readonly entries: readonly BuildEntry[];
   }));
   await reportMissing(resolved, issues, file);
   entries.push(...resolved);
-  return rendered;
+  return { ...rendered, template };
+}
+
+// Pushes hook-types-stale when the generated hook input types file is missing or differs from source.
+async function checkHookTypes(
+  templatePath: string,
+  file: string,
+  hookTypes: string,
+  source: string,
+  issues: Issue[],
+): Promise<void> {
+  let text: string;
+  try {
+    text = await readFile(resolve(dirname(templatePath), hookTypes), "utf8");
+  } catch (error) {
+    if (!isErrno(error, "ENOENT")) throw error;
+    issues.push({
+      severity: "error",
+      code: "hook-types-stale",
+      message: `hook types file "${hookTypes}" not found; run claude-code-hook-types`,
+      path: ["hookTypes"],
+      file,
+    });
+    return;
+  }
+  // Ignore CRLF from autocrlf checkouts.
+  if (text.replaceAll("\r\n", "\n") !== source) {
+    issues.push({
+      severity: "error",
+      code: "hook-types-stale",
+      message: `hook types file "${hookTypes}" is stale; run claude-code-hook-types`,
+      path: ["hookTypes"],
+      file,
+    });
+  }
 }
 
 export async function loadProject(options: ProjectOptions = {}): Promise<LoadedProject> {
@@ -136,9 +171,29 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
   const entries: ResolvedEntry[] = [];
   let hooksJson: object | undefined;
   if (options.hooksTemplate !== undefined) {
-    hooksJson =
-      (await loadTemplate(root, options.hooksTemplate, "hooks template", renderHooksTemplate, issues, entries))
-        ?.hooksJson;
+    const rendered = await loadTemplate(
+      root,
+      options.hooksTemplate,
+      "hooks template",
+      renderHooksTemplate,
+      issues,
+      entries,
+    );
+    hooksJson = rendered?.hooksJson;
+    if (rendered?.hookTypes !== undefined) {
+      const types = renderHookInputTypes(rendered.template);
+      issues.push(...withFile(types.issues, options.hooksTemplate));
+      // A failed generation already reported its error and its source is incomplete.
+      if (!types.issues.some((issue) => issue.severity === "error")) {
+        await checkHookTypes(
+          resolve(root, options.hooksTemplate),
+          options.hooksTemplate,
+          rendered.hookTypes,
+          types.source,
+          issues,
+        );
+      }
+    }
   }
   let mcpJson: object | undefined;
   if (options.mcpTemplate !== undefined) {
