@@ -1,7 +1,7 @@
 import type { Issue } from "@kwitsch/claude-code-plugin-core";
 import { renderHookInputTypes, renderHooksTemplate } from "@kwitsch/claude-code-plugin-core";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 
 export interface HookTypesResult {
   readonly code: 0 | 1;
@@ -48,6 +48,11 @@ export async function hookTypes(templatePath: string, check: boolean): Promise<H
   if (issues.some((issue) => issue.severity === "error")) return { code: 1, lines };
 
   const targetPath = resolve(dirname(path), target);
+  // The target must stay inside the template directory.
+  const rel = relative(dirname(path), targetPath);
+  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
+    return { code: 1, lines: [...lines, `error: "hookTypes" must stay inside the template directory: "${target}"`] };
+  }
   const current = await readIfExists(targetPath);
   if (current === types.source) return { code: 0, lines: [...lines, `"${target}" is up to date`] };
   if (check) {
