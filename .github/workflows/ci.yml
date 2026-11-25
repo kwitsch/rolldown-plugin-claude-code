@@ -24,6 +24,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
       - run: pnpm build
+      - run: pnpm hook-types:check
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
@@ -42,7 +43,7 @@ jobs:
       - name: Pack and inspect tarballs
         run: |
           mkdir -p "$RUNNER_TEMP/tarballs"
-          for p in core rolldown-plugin tsdown-preset; do
+          for p in core rolldown-plugin tsdown-preset cli; do
             (cd "packages/$p" && pnpm pack --pack-destination "$RUNNER_TEMP/tarballs")
           done
           for t in "$RUNNER_TEMP"/tarballs/*.tgz; do
