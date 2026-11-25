@@ -1,0 +1,42 @@
+{
+  "modules": [
+    "./register.js"
+  ],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "mcp_tool",
+            "server": "plugin:mcp-hook:checker",
+            "tool": "check_path",
+            "input": {
+              "path": "${tool_input.file_path}",
+              "strict": true
+            }
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "mcp_tool",
+            "server": "plugin:mcp-hook:checker",
+            "tool": "check_path",
+            "input": {
+              "path": "${tool_input.file_path}",
+              "tags": [
+                "post",
+                1
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
