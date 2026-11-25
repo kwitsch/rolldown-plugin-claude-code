@@ -1,6 +1,8 @@
 export type { BuildEntry } from "./build-entry.js";
 export { bundleEntries } from "./bundle-entries.js";
 export type { BundleEntriesResult, FileCopy } from "./bundle-entries.js";
+export { renderHookInputTypes } from "./hook-input-types.js";
+export type { HookInputTypesResult } from "./hook-input-types.js";
 export { renderHooksTemplate } from "./hooks-template.js";
 export type { HooksTemplateResult } from "./hooks-template.js";
 export { ISSUE_CODES } from "./issue.js";
