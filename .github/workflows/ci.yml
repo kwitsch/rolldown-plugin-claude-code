@@ -81,7 +81,7 @@ jobs:
       github.event_name == 'pull_request' &&
       github.head_ref != 'changeset-release/main' &&
       github.event.pull_request.user.login != 'dependabot[bot]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v7
         with:
