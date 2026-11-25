@@ -139,7 +139,8 @@ async function checkHookTypes(
     });
     return;
   }
-  if (text !== source) {
+  // Ignore CRLF from autocrlf checkouts.
+  if (text.replaceAll("\r\n", "\n") !== source) {
     issues.push({
       severity: "error",
       code: "hook-types-stale",
