@@ -55,7 +55,7 @@ jobs:
   drift:
     needs: e2e
     if: failure() && github.event_name == 'schedule'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       issues: write
     env:
