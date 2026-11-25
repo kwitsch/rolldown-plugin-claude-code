@@ -1,7 +1,6 @@
 import type {
   BuildEntry,
   FileCopy,
-  HooksTemplateResult,
   Issue,
   PackageJson,
   PluginConfig,
@@ -102,7 +101,7 @@ async function loadTemplate<T extends { readonly entries: readonly BuildEntry[];
   render: (template: unknown) => T,
   issues: Issue[],
   entries: ResolvedEntry[],
-): Promise<T | undefined> {
+): Promise<(T & { readonly template: unknown }) | undefined> {
   const templatePath = resolve(root, file);
   const template = await parseTemplate(file, templatePath, label, issues);
   if (template === undefined) return undefined;
@@ -114,7 +113,7 @@ async function loadTemplate<T extends { readonly entries: readonly BuildEntry[];
   }));
   await reportMissing(resolved, issues, file);
   entries.push(...resolved);
-  return rendered;
+  return { ...rendered, template };
 }
 
 // Pushes hook-types-stale when the generated hook input types file is missing or differs from source.
@@ -172,31 +171,28 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
   const entries: ResolvedEntry[] = [];
   let hooksJson: object | undefined;
   if (options.hooksTemplate !== undefined) {
-    // An array, not a let: TypeScript does not track assignments made inside the callback.
-    const generated: { readonly path: string; readonly source: string; readonly failed: boolean }[] = [];
-    const render = (template: unknown): HooksTemplateResult => {
-      const rendered = renderHooksTemplate(template);
-      if (rendered.hookTypes === undefined) return rendered;
-      const types = renderHookInputTypes(template);
-      generated.push({
-        path: rendered.hookTypes,
-        source: types.source,
-        failed: types.issues.some((issue) => issue.severity === "error"),
-      });
-      return { ...rendered, issues: [...rendered.issues, ...types.issues] };
-    };
-    hooksJson = (await loadTemplate(root, options.hooksTemplate, "hooks template", render, issues, entries))
-      ?.hooksJson;
-    const types = generated[0];
-    // A failed generation already reported its error and its source is incomplete.
-    if (types !== undefined && !types.failed) {
-      await checkHookTypes(
-        resolve(root, options.hooksTemplate),
-        options.hooksTemplate,
-        types.path,
-        types.source,
-        issues,
-      );
+    const rendered = await loadTemplate(
+      root,
+      options.hooksTemplate,
+      "hooks template",
+      renderHooksTemplate,
+      issues,
+      entries,
+    );
+    hooksJson = rendered?.hooksJson;
+    if (rendered?.hookTypes !== undefined) {
+      const types = renderHookInputTypes(rendered.template);
+      issues.push(...withFile(types.issues, options.hooksTemplate));
+      // A failed generation already reported its error and its source is incomplete.
+      if (!types.issues.some((issue) => issue.severity === "error")) {
+        await checkHookTypes(
+          resolve(root, options.hooksTemplate),
+          options.hooksTemplate,
+          rendered.hookTypes,
+          types.source,
+          issues,
+        );
+      }
     }
   }
   let mcpJson: object | undefined;

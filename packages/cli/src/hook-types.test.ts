@@ -101,6 +101,15 @@ describe("hookTypes", () => {
     await expect(read(templatePath)).rejects.toThrow(/ENOENT/);
   });
 
+  it("writes the file despite an unrelated template error and lists that error", async () => {
+    const templatePath = await project({ ...TEMPLATE, mod: "mod.js" });
+    const result = await hookTypes(templatePath, false);
+    expect(result.code).toBe(0);
+    expect(result.lines[0]).toMatch(/^error template-invalid: mod "mod\.js"/);
+    expect(result.lines.at(-1)).toBe(`wrote "${TARGET}"`);
+    expect(await read(templatePath)).toBe(SOURCE);
+  });
+
   it("fails for a missing or unparsable template", async () => {
     const missing = join(dirname(await project({})), "nope.json");
     const result = await hookTypes(missing, false);
