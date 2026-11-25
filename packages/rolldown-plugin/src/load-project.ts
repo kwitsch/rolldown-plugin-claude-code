@@ -1,6 +1,7 @@
 import type {
   BuildEntry,
   FileCopy,
+  HooksTemplateResult,
   Issue,
   PackageJson,
   PluginConfig,
@@ -9,6 +10,7 @@ import type {
 import {
   bundleEntries,
   pluginManifest,
+  renderHookInputTypes,
   renderHooksTemplate,
   renderMcpTemplate,
   scriptEntries,
@@ -115,6 +117,39 @@ async function loadTemplate<T extends { readonly entries: readonly BuildEntry[];
   return rendered;
 }
 
+// Pushes hook-types-stale when the generated hook input types file is missing or differs from source.
+async function checkHookTypes(
+  templatePath: string,
+  file: string,
+  hookTypes: string,
+  source: string,
+  issues: Issue[],
+): Promise<void> {
+  let text: string;
+  try {
+    text = await readFile(resolve(dirname(templatePath), hookTypes), "utf8");
+  } catch (error) {
+    if (!isErrno(error, "ENOENT")) throw error;
+    issues.push({
+      severity: "error",
+      code: "hook-types-stale",
+      message: `hook types file "${hookTypes}" not found; run claude-code-hook-types`,
+      path: ["hookTypes"],
+      file,
+    });
+    return;
+  }
+  if (text !== source) {
+    issues.push({
+      severity: "error",
+      code: "hook-types-stale",
+      message: `hook types file "${hookTypes}" is stale; run claude-code-hook-types`,
+      path: ["hookTypes"],
+      file,
+    });
+  }
+}
+
 export async function loadProject(options: ProjectOptions = {}): Promise<LoadedProject> {
   const root = resolve(options.root ?? process.cwd());
 
@@ -136,9 +171,32 @@ export async function loadProject(options: ProjectOptions = {}): Promise<LoadedP
   const entries: ResolvedEntry[] = [];
   let hooksJson: object | undefined;
   if (options.hooksTemplate !== undefined) {
-    hooksJson =
-      (await loadTemplate(root, options.hooksTemplate, "hooks template", renderHooksTemplate, issues, entries))
-        ?.hooksJson;
+    // An array, not a let: TypeScript does not track assignments made inside the callback.
+    const generated: { readonly path: string; readonly source: string; readonly failed: boolean }[] = [];
+    const render = (template: unknown): HooksTemplateResult => {
+      const rendered = renderHooksTemplate(template);
+      if (rendered.hookTypes === undefined) return rendered;
+      const types = renderHookInputTypes(template);
+      generated.push({
+        path: rendered.hookTypes,
+        source: types.source,
+        failed: types.issues.some((issue) => issue.severity === "error"),
+      });
+      return { ...rendered, issues: [...rendered.issues, ...types.issues] };
+    };
+    hooksJson = (await loadTemplate(root, options.hooksTemplate, "hooks template", render, issues, entries))
+      ?.hooksJson;
+    const types = generated[0];
+    // A failed generation already reported its error and its source is incomplete.
+    if (types !== undefined && !types.failed) {
+      await checkHookTypes(
+        resolve(root, options.hooksTemplate),
+        options.hooksTemplate,
+        types.path,
+        types.source,
+        issues,
+      );
+    }
   }
   let mcpJson: object | undefined;
   if (options.mcpTemplate !== undefined) {
