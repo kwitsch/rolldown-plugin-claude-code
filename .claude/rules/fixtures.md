@@ -11,3 +11,4 @@ paths:
 - A hooks module (a `mod`) may import only relative paths and `claude-code`; the real CLI rejects even `node:fs`. Shared modules that get inlined into a mod must be pure. Only scripts (`bin`, skill scripts) may import `node:*`.
 - Keep fixtures minimal: one fixture per feature combination, and no fixture depends on another.
 - `fixtures/*/expected` and `fixtures/*/plugin` are excluded from dprint and oxlint; do not reformat them.
+- A fixture's generated hook input types file (the template's `hookTypes`, such as `fixtures/mcp-hook/src/hook-types.d.ts`) is committed, regenerated with the CLI (`pnpm build`, then `node packages/cli/dist/index.mjs fixtures/<name>/hooks.template.json`) and never edited by hand; it is excluded from dprint.
