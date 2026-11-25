@@ -1,5 +1,11 @@
 # @kwitsch/claude-code-plugin-core
 
+## 0.4.1
+
+### Patch Changes
+
+- 1175c60: The package README now documents installation, usage and options with examples, instead of pointing to the repository README.
+
 ## 0.4.0
 
 ### Minor Changes
