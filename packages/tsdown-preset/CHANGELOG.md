@@ -1,5 +1,13 @@
 # @kwitsch/tsdown-preset-claude-code
 
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies [2b514c3]
+  - @kwitsch/claude-code-plugin-core@0.5.0
+  - @kwitsch/rolldown-plugin-claude-code@0.4.2
+
 ## 0.4.1
 
 ### Patch Changes

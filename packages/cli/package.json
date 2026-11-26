@@ -1,6 +1,6 @@
 {
   "name": "@kwitsch/claude-code-plugin-cli",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Command-line tools for Claude Code plugin projects.",
   "keywords": ["claude-code", "claude-code-plugin", "plugin-builder"],
   "repository": {
