@@ -11,7 +11,8 @@ export interface HookTypesResult {
 export const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 // issueLine lives in rolldown-plugin, which the cli must not import.
-const format = (issue: Issue): string => `${issue.severity} ${issue.code}: ${issue.message}`;
+export const format = (issue: Issue): string =>
+  `${issue.severity} ${issue.code}: ${issue.file ? `${issue.file}: ` : ""}${issue.message}`;
 
 // undefined = the file does not exist; any other read error propagates.
 async function readIfExists(path: string): Promise<string | undefined> {
