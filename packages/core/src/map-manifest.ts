@@ -1,55 +1,16 @@
 import type { Issue } from "./issue.js";
 import type { PackageJson } from "./package-json.js";
 import type { PluginAuthor, PluginManifest } from "./plugin-manifest.js";
+import { isRecord, KNOWN_FIELDS, show } from "./validate-manifest.js";
 
 export interface ManifestResult {
   readonly manifest: PluginManifest | undefined;
   readonly issues: readonly Issue[];
 }
 
-// Declaration order of PluginManifest; `satisfies` makes a missing or extra key a compile error.
-const MANIFEST_KEYS = {
-  $schema: true,
-  name: true,
-  displayName: true,
-  version: true,
-  description: true,
-  author: true,
-  homepage: true,
-  repository: true,
-  license: true,
-  keywords: true,
-  metadata: true,
-  icon: true,
-  documentationUrl: true,
-  supportUrl: true,
-  privacyPolicyUrl: true,
-  termsOfServiceUrl: true,
-  defaultEnabled: true,
-  engines: true,
-  dependencies: true,
-  network: true,
-  userConfig: true,
-  types: true,
-  channels: true,
-  skills: true,
-  commands: true,
-  agents: true,
-  hooks: true,
-  mcpServers: true,
-  lspServers: true,
-  outputStyles: true,
-  experimental: true,
-} satisfies Record<keyof PluginManifest, true>;
-
 const str = (value: unknown): string | undefined => typeof value === "string" && value !== "" ? value : undefined;
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 const trimmed = (value: unknown): string | undefined => typeof value === "string" ? value.trim() : undefined;
-
-const show = (value: unknown): string => String(JSON.stringify(value));
 
 function parseAuthor(value: unknown): PluginAuthor | "invalid" | undefined {
   let name: string;
@@ -127,7 +88,7 @@ export function pluginManifest(pkg: PackageJson, overrides?: Partial<PluginManif
     if (value !== undefined) mapped[field] = value;
   }
 
-  const description = str(typeof pkg.description === "string" ? pkg.description.trim() : undefined);
+  const description = str(trimmed(pkg.description));
   if (description !== undefined) mapped["description"] = description;
 
   const keywords: unknown = pkg.keywords;
@@ -166,7 +127,7 @@ export function pluginManifest(pkg: PackageJson, overrides?: Partial<PluginManif
 
   // Known keys in declaration order first, then runtime-only override keys in insertion order.
   const ordered: Record<string, unknown> = {};
-  for (const key of Object.keys(MANIFEST_KEYS)) {
+  for (const key of KNOWN_FIELDS) {
     if (Object.hasOwn(mapped, key)) ordered[key] = mapped[key];
   }
   for (const key of Object.keys(mapped)) {

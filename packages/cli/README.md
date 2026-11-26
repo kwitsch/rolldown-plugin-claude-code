@@ -80,16 +80,34 @@ export function checkPath(input: CheckPathInput): boolean {
 
 The build never writes this file: [`@kwitsch/tsdown-preset-claude-code`](https://github.com/kwitsch/rolldown-plugin-claude-code/tree/main/packages/tsdown-preset#readme) and [`@kwitsch/rolldown-plugin-claude-code`](https://github.com/kwitsch/rolldown-plugin-claude-code/tree/main/packages/rolldown-plugin#readme) fail with `hook-types-stale` when the file is missing or differs from what the template generates. Write it with the CLI.
 
+### Placeholder check
+
+The command also checks every `${...}` in a string value of an `mcp_tool` hook's `input`, at any depth, against the fields Claude Code passes to that hook event, and prints one line per unknown placeholder:
+
+```text
+<severity> hook-placeholder-unknown: <Event>-><matcher>-><server>:<tool> ${var}
+```
+
+The matcher segment is left out when the group has none or the event has no matcher support. Identical lines are printed once. Unknown placeholders are warnings; with `--strict` they are errors.
+
+- Known fields are the common input fields plus the event's own fields from the [hooks reference](https://code.claude.com/docs/en/hooks#hook-input-and-output). The docs publish no list of substitution variables, so the list is derived from each event's input section and may lag new Claude Code versions.
+- `tool_input`, `tool_response`, `mcp_server` and other object or array fields accept any sub-path.
+- On tool events whose matcher is an exact list of built-in tools, `tool_input` is limited to those tools' fields: Agent, Bash, Edit, NotebookEdit, Read, Skill, WebFetch, WebSearch and Write, as Claude Code 2.1.332 defines them. It stays open when the list names any other tool (Glob, Grep, PowerShell, MCP tools), and for regex, `*` or missing matchers.
+- Events Claude Code does not document are not checked.
+- Only `${name}` with a name of letters, digits, `_` and `.` that starts with a letter or `_` is a placeholder. Claude Code 2.1.332 leaves anything else, such as `${}`, `${ cwd }` or `${a-b}`, as literal text, and has no escape: `$${cwd}` is `$` followed by the cwd.
+- An unknown placeholder becomes an empty string. In Claude Code 2.1.332 that includes `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}`, `${CLAUDE_PROJECT_DIR}`, `${user_config.*}` and environment variables: they are substituted in `command`/`args` only, so the check reports them in `input`.
+
 ## Usage
 
 ```sh
-claude-code-hook-types [--check] [template]
+claude-code-hook-types [--check] [--strict] [template]
 ```
 
 - `template` is the hooks template, `hooks.template.json` by default.
 - Without `--check`, the command writes the file named by `hookTypes` (relative to the template, and it must stay inside the template's directory) and prints `wrote "<file>"` or `"<file>" is up to date`.
 - With `--check`, it writes nothing and exits with code 1 when the file is missing or stale; run it in CI.
-- Problems of the template are printed as `<severity> <code>: <message>`. Only problems that prevent generating the types make the command fail; other template errors are listed and the file is still written.
+- With `--strict`, unknown placeholders (see [Placeholder check](#placeholder-check)) are errors: the command exits with code 1, writes nothing, skips the up-to-date and stale check, and lists every unknown placeholder. `--check` and `--strict` combine.
+- Problems of the template are printed as `<severity> <code>: <message>`. Only problems that prevent generating the types or, with `--strict`, unknown placeholders make the command fail; other template errors are listed and the file is still written.
 
 Run it before type checking and building:
 
