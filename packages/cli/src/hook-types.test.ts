@@ -150,6 +150,13 @@ describe("hookTypes", () => {
     expect(await read(templatePath)).toBe(SOURCE);
   });
 
+  it("prints a repeated placeholder line once", async () => {
+    const input = { path: "${abc}-${abc}-${tool_input.command}" };
+    const group = { matcher: "Write|Edit", hooks: [{ type: "mcp_tool", server: "s", tool: "t", input }] };
+    const templatePath = await project({ hookTypes: TARGET, hooks: { PreToolUse: [group, group] } });
+    expect(await hookTypes(templatePath, false, true)).toEqual({ code: 1, lines: ERRORS });
+  });
+
   it("keeps the --check outcome with unknown placeholders", async () => {
     const current = await project(UNKNOWN, { [TARGET]: SOURCE });
     expect(await hookTypes(current, true)).toEqual({ code: 0, lines: [...WARNINGS, `"${TARGET}" is up to date`] });
