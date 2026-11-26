@@ -5,6 +5,7 @@
     "pnpm-lock.yaml",
     "fixtures/*/expected",
     "fixtures/*/plugin",
+    ".claude/worktrees",
     "fixtures/mcp-hook/src/hook-types.d.ts"
   ],
   "plugins": [
