@@ -1,3 +1,4 @@
+import { mcpToolHooks } from "./hook-input-types.js";
 import type { Issue } from "./issue.js";
 import type { IssuePath } from "./validate-manifest.js";
 import { isRecord } from "./validate-manifest.js";
@@ -147,52 +148,39 @@ function narrow(event: string, matcher: string | undefined, fields: readonly str
   return [...fields.filter((field) => field !== "tool_input.*"), "tool_input", ...toolFields];
 }
 
+// Every placeholder name in the string values of value, at any depth, with the path of its string.
+function* placeholders(value: unknown, path: IssuePath): Generator<readonly [string, IssuePath]> {
+  if (typeof value === "string") {
+    for (const [, name = ""] of value.matchAll(PLACEHOLDER)) yield [name, path];
+  } else if (Array.isArray(value)) {
+    for (const [index, item] of value.entries()) yield* placeholders(item, [...path, index]);
+  } else if (isRecord(value)) {
+    for (const [key, item] of Object.entries(value)) yield* placeholders(item, [...path, key]);
+  }
+}
+
 export function checkHookPlaceholders(template: unknown): HookPlaceholdersResult {
   // renderHooksTemplate already reports a non-object template.
   if (!isRecord(template)) return { issues: [] };
   const issues: Issue[] = [];
-
-  // Same path as renderHookInputTypes; anything off that shape is skipped.
-  const hooks = template["hooks"];
-  for (const [event, groups] of Object.entries(isRecord(hooks) ? hooks : {})) {
+  for (const { event, group, path, call } of mcpToolHooks(template)) {
     // hasOwn: an event named like an Object.prototype member is unknown, not a crash.
     const own = Object.hasOwn(EVENT_FIELDS, event) ? EVENT_FIELDS[event] : undefined;
-    if (own === undefined || !Array.isArray(groups)) continue;
-    groups.forEach((group: unknown, groupIndex) => {
-      const inner = isRecord(group) ? group["hooks"] : undefined;
-      if (!isRecord(group) || !Array.isArray(inner)) return;
-      const raw = group["matcher"];
-      const matcher = !NO_MATCHER.has(event) && typeof raw === "string" && raw !== "" ? raw : undefined;
-      const fields = narrow(event, matcher, [...COMMON, ...own]);
-      inner.forEach((hook: unknown, hookIndex) => {
-        if (!isRecord(hook) || hook["type"] !== "mcp_tool") return;
-        const server = hook["server"];
-        const tool = hook["tool"];
-        const input = hook["input"];
-        // Invalid mcp_tool hooks already get hook-input-invalid from renderHookInputTypes.
-        if (typeof server !== "string" || server === "" || typeof tool !== "string" || tool === "") return;
-        if (!isRecord(input)) return;
-        const position = [event, matcher, `${server}:${tool}`].filter((part) => part !== undefined).join("->");
-        const scan = (value: unknown, path: IssuePath): void => {
-          if (typeof value === "string") {
-            for (const [, name = ""] of value.matchAll(PLACEHOLDER)) {
-              if (allowed(name, fields)) continue;
-              issues.push({
-                severity: "warning",
-                code: "hook-placeholder-unknown",
-                message: `${position} \${${name}}`,
-                path,
-              });
-            }
-          } else if (Array.isArray(value)) {
-            value.forEach((item: unknown, index) => scan(item, [...path, index]));
-          } else if (isRecord(value)) {
-            for (const [key, item] of Object.entries(value)) scan(item, [...path, key]);
-          }
-        };
-        scan(input, ["hooks", event, groupIndex, "hooks", hookIndex, "input"]);
+    // Invalid mcp_tool hooks already get hook-input-invalid from renderHookInputTypes.
+    if (own === undefined || call === undefined) continue;
+    const raw = group["matcher"];
+    const matcher = !NO_MATCHER.has(event) && typeof raw === "string" && raw !== "" ? raw : undefined;
+    const fields = narrow(event, matcher, [...COMMON, ...own]);
+    const position = [event, matcher, `${call.server}:${call.tool}`].filter((part) => part !== undefined).join("->");
+    for (const [name, at] of placeholders(call.input, [...path, "input"])) {
+      if (allowed(name, fields)) continue;
+      issues.push({
+        severity: "warning",
+        code: "hook-placeholder-unknown",
+        message: `${position} \${${name}}`,
+        path: at,
       });
-    });
+    }
   }
   return { issues };
 }

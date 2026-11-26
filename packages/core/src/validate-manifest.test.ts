@@ -3,7 +3,7 @@ import type { Issue, IssueCode, IssueSeverity, PluginManifest } from "./index.js
 import { validateManifest } from "./index.js";
 import { KNOWN_FIELDS } from "./validate-manifest.js";
 
-type IssuePath = readonly (string | number)[];
+import type { IssuePath } from "./validate-manifest.js";
 
 const issue = (severity: IssueSeverity, code: IssueCode, message: string, path: IssuePath): Issue => ({
   severity,

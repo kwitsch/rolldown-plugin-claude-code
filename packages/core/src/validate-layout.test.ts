@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it } from "vitest";
 import type { BuildEntry, Issue, IssueCode, PluginManifest } from "./index.js";
 import { validateLayout } from "./index.js";
 
-type IssuePath = readonly (string | number)[];
+import type { IssuePath } from "./validate-manifest.js";
 type ManifestFields = Omit<PluginManifest, "name">;
 
 // toEqual ignores an undefined path, so issues without a JSON path pass no path.

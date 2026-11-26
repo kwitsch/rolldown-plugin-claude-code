@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import type { Issue, IssueCode } from "./index.js";
 import { scriptEntries } from "./index.js";
 
-type IssuePath = readonly (string | number)[];
+import type { IssuePath } from "./validate-manifest.js";
 
 const issue = (code: IssueCode, message: string, path: IssuePath): Issue => ({
   severity: "error",

@@ -25,43 +25,63 @@ function typeOf(value: unknown): string {
 // Code-unit order; Map keys are unique, so no two entries compare equal.
 const sorted = <T>(map: ReadonlyMap<string, T>): [string, T][] => [...map].sort(([a], [b]) => (a < b ? -1 : 1));
 
-export function renderHookInputTypes(template: unknown): HookInputTypesResult {
-  if (!isRecord(template)) return { source: "", ...notAnObject(template) };
-  const issues: Issue[] = [];
-  const servers = new Map<string, Map<string, Set<string>>>();
+type JsonRecord = Readonly<Record<string, unknown>>;
 
-  // Same path as renderHooks; anything off that shape is skipped, structure is not this function's job.
+export interface McpToolHook {
+  readonly event: string;
+  readonly group: JsonRecord;
+  readonly hook: JsonRecord;
+  readonly path: IssuePath;
+  // undefined when server, tool or input is invalid (renderHookInputTypes reports it as hook-input-invalid).
+  readonly call: { readonly server: string; readonly tool: string; readonly input: JsonRecord } | undefined;
+}
+
+// Every mcp_tool hook at hooks.<event>[i].hooks[j], the same path as renderHooks; anything off that shape is skipped.
+export function mcpToolHooks(template: JsonRecord): McpToolHook[] {
+  const found: McpToolHook[] = [];
   const hooks = template["hooks"];
   for (const [event, groups] of Object.entries(isRecord(hooks) ? hooks : {})) {
     if (!Array.isArray(groups)) continue;
     groups.forEach((group: unknown, groupIndex) => {
       const inner = isRecord(group) ? group["hooks"] : undefined;
-      if (!Array.isArray(inner)) return;
+      if (!isRecord(group) || !Array.isArray(inner)) return;
       inner.forEach((hook: unknown, hookIndex) => {
         if (!isRecord(hook) || hook["type"] !== "mcp_tool") return;
+        const { server, tool, input } = hook;
+        const valid = typeof server === "string" && server !== "" && typeof tool === "string" && tool !== ""
+          && isRecord(input);
         const path: IssuePath = ["hooks", event, groupIndex, "hooks", hookIndex];
-        const server = hook["server"];
-        const tool = hook["tool"];
-        const input = hook["input"];
-        if (typeof server === "string" && server !== "" && typeof tool === "string" && tool !== "" && isRecord(input)) {
-          const tools = servers.get(server) ?? new Map<string, Set<string>>();
-          servers.set(server, tools);
-          const shapes = tools.get(tool) ?? new Set<string>();
-          tools.set(tool, shapes);
-          shapes.add(typeOf(input));
-          return;
-        }
-        if (typeof server !== "string" || server === "") {
-          issues.push(invalid([...path, "server"], server, "must be a string", "hook-input-invalid"));
-        }
-        if (typeof tool !== "string" || tool === "") {
-          issues.push(invalid([...path, "tool"], tool, "must be a string", "hook-input-invalid"));
-        }
-        if (!isRecord(input)) {
-          issues.push(invalid([...path, "input"], input, "must be an object", "hook-input-invalid"));
-        }
+        found.push({ event, group, hook, path, call: valid ? { server, tool, input } : undefined });
       });
     });
+  }
+  return found;
+}
+
+export function renderHookInputTypes(template: unknown): HookInputTypesResult {
+  if (!isRecord(template)) return { source: "", ...notAnObject(template) };
+  const issues: Issue[] = [];
+  const servers = new Map<string, Map<string, Set<string>>>();
+
+  for (const { hook, path, call } of mcpToolHooks(template)) {
+    if (call !== undefined) {
+      const tools = servers.get(call.server) ?? new Map<string, Set<string>>();
+      servers.set(call.server, tools);
+      const shapes = tools.get(call.tool) ?? new Set<string>();
+      tools.set(call.tool, shapes);
+      shapes.add(typeOf(call.input));
+      continue;
+    }
+    const { server, tool, input } = hook;
+    if (typeof server !== "string" || server === "") {
+      issues.push(invalid([...path, "server"], server, "must be a string", "hook-input-invalid"));
+    }
+    if (typeof tool !== "string" || tool === "") {
+      issues.push(invalid([...path, "tool"], tool, "must be a string", "hook-input-invalid"));
+    }
+    if (!isRecord(input)) {
+      issues.push(invalid([...path, "input"], input, "must be an object", "hook-input-invalid"));
+    }
   }
 
   const lines = [HEADER];

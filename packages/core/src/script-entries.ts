@@ -24,7 +24,7 @@ export function scriptEntries(config: { readonly scripts?: unknown }): ScriptEnt
   const built = new Map<string, string>();
 
   const add = (path: IssuePath, value: unknown, dir: string): void => {
-    if (typeof value !== "string" || value === "" || !isScriptSource(value)) {
+    if (typeof value !== "string" || !isScriptSource(value)) {
       issues.push(invalid(path, value, "must be a relative path to a .ts or .mts file", "path-invalid"));
       return;
     }
@@ -47,37 +47,24 @@ export function scriptEntries(config: { readonly scripts?: unknown }): ScriptEnt
     return { entries, issues };
   }
   const { bin, skills } = scripts;
-  if (bin !== undefined) {
-    if (Array.isArray(bin)) {
-      bin.forEach((item: unknown, i: number) => add(["scripts", "bin", i], item, OUTPUT_DIRS.bin));
-    } else {
-      issues.push(invalid(["scripts", "bin"], bin, "must be an array", "field-type"));
-    }
+  if (Array.isArray(bin)) {
+    bin.forEach((item: unknown, i: number) => add(["scripts", "bin", i], item, OUTPUT_DIRS.bin));
+  } else if (bin !== undefined) {
+    issues.push(invalid(["scripts", "bin"], bin, "must be an array", "field-type"));
   }
-  if (skills !== undefined) {
-    if (!isRecord(skills)) {
-      issues.push(invalid(["scripts", "skills"], skills, "must be an object", "field-type"));
+  if (skills !== undefined && !isRecord(skills)) {
+    issues.push(invalid(["scripts", "skills"], skills, "must be an object", "field-type"));
+    return { entries, issues };
+  }
+  for (const [skill, list] of Object.entries(skills ?? {})) {
+    const path = ["scripts", "skills", skill];
+    if (/^\.{0,2}$|[/\\]/.test(skill)) {
+      const reason = "skill name must not be empty, \".\" or \"..\" or contain / or \\";
+      issues.push(invalid(path, skill, reason, "path-invalid"));
+    } else if (!Array.isArray(list)) {
+      issues.push(invalid(path, list, "must be an array", "field-type"));
     } else {
-      for (const [skill, list] of Object.entries(skills)) {
-        if (/^\.{0,2}$|[/\\]/.test(skill)) {
-          issues.push(
-            invalid(
-              ["scripts", "skills", skill],
-              skill,
-              "skill name must not be empty, \".\" or \"..\" or contain / or \\",
-              "path-invalid",
-            ),
-          );
-          continue;
-        }
-        if (!Array.isArray(list)) {
-          issues.push(invalid(["scripts", "skills", skill], list, "must be an array", "field-type"));
-          continue;
-        }
-        list.forEach((item: unknown, i: number) =>
-          add(["scripts", "skills", skill, i], item, `${OUTPUT_DIRS.skills}/${skill}`)
-        );
-      }
+      list.forEach((item: unknown, i: number) => add([...path, i], item, `${OUTPUT_DIRS.skills}/${skill}`));
     }
   }
   return { entries, issues };

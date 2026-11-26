@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import type { HooksTemplateResult, Issue, IssueCode, IssueSeverity } from "./index.js";
 import { renderHooksTemplate } from "./index.js";
 
-type IssuePath = readonly (string | number)[];
+import type { IssuePath } from "./validate-manifest.js";
 
 const issue = (severity: IssueSeverity, code: IssueCode, message: string, path: IssuePath): Issue => ({
   severity,

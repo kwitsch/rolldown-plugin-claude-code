@@ -56,43 +56,40 @@ export async function validateLayout(input: LayoutInput): Promise<readonly Issue
     return [err("path-invalid", `outDir ${show(outDir)} must be a directory, found a file`, outDir)];
   }
 
-  const issues: Issue[] = [];
   // Anything that is not an existing file (missing or a directory) is path-missing.
-  const requireFile = async (file: string, message: string): Promise<void> => {
-    if ((await kindOf(join(outDir, file))) !== "file") {
-      issues.push(err("path-missing", message, file));
-    }
-  };
+  const requireFile = async (
+    file: string,
+    message = `${show(file)} is missing or not a file`,
+  ): Promise<Issue | undefined> =>
+    (await kindOf(join(outDir, file))) === "file" ? undefined : err("path-missing", message, file);
 
-  await requireFile(".claude-plugin/plugin.json", `${show(".claude-plugin/plugin.json")} is missing or not a file`);
-
-  for (const item of manifestPaths(manifest)) {
+  const checkPath = async (item: ManifestPath): Promise<Issue | undefined> => {
     const { path, value } = item;
     // validateManifest already reports ".." paths; never stat outside outDir (backslash covers Windows).
-    if (value.split(/[\\/]/).includes("..")) continue;
+    if (value.split(/[\\/]/).includes("..")) return undefined;
     const file = relativeFile(value);
     // join, not resolve: an absolute value stays under outDir; the stripped trailing "/" lets a file be found as a file.
     const actual = await kindOf(join(outDir, file));
     const expected = expectedKind(item);
-    if (actual === undefined) {
-      issues.push(err("path-missing", `${label(path)} ${show(value)} does not exist`, file, path));
-    } else if (expected !== "either" && actual !== expected) {
-      issues.push(
-        err("path-invalid", `${label(path)} ${show(value)} must be a ${expected}, found a ${actual}`, file, path),
-      );
+    if (actual === undefined) return err("path-missing", `${label(path)} ${show(value)} does not exist`, file, path);
+    if (expected !== "either" && actual !== expected) {
+      return err("path-invalid", `${label(path)} ${show(value)} must be a ${expected}, found a ${actual}`, file, path);
     }
-  }
+    return undefined;
+  };
 
   // Bundles are shared code, not hooks or MCP servers: they never require hooks.json or .mcp.json.
   const built = entries.filter((entry) => entry.kind !== "bundle");
-  if (built.some((entry) => entry.output.startsWith(`${OUTPUT_DIRS.hooks}/`))) {
-    await requireFile("hooks/hooks.json", `${show("hooks/hooks.json")} is missing or not a file`);
-  }
-  if (built.some((entry) => entry.output.startsWith(`${OUTPUT_DIRS.mcp}/`))) {
-    await requireFile(".mcp.json", `${show(".mcp.json")} is missing or not a file`);
-  }
-  for (const entry of entries) {
-    await requireFile(entry.output, `${show(entry.output)} built from ${show(entry.source)} is missing or not a file`);
-  }
-  return issues;
+  const builds = (dir: string): boolean => built.some((entry) => entry.output.startsWith(`${dir}/`));
+  // The stats are independent: run them together, report in this order.
+  const checks = [
+    requireFile(".claude-plugin/plugin.json"),
+    ...manifestPaths(manifest).map(checkPath),
+    ...(builds(OUTPUT_DIRS.hooks) ? [requireFile("hooks/hooks.json")] : []),
+    ...(builds(OUTPUT_DIRS.mcp) ? [requireFile(".mcp.json")] : []),
+    ...entries.map((entry) =>
+      requireFile(entry.output, `${show(entry.output)} built from ${show(entry.source)} is missing or not a file`)
+    ),
+  ];
+  return (await Promise.all(checks)).filter((issue) => issue !== undefined);
 }

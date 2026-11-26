@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import type { Issue, IssueCode, McpTemplateResult } from "./index.js";
 import { renderMcpTemplate } from "./index.js";
 
-type IssuePath = readonly (string | number)[];
+import type { IssuePath } from "./validate-manifest.js";
 
 const issue = (code: IssueCode, message: string, path: IssuePath): Issue => ({
   severity: "error",

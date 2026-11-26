@@ -2,7 +2,7 @@ import type { Issue, IssueSeverity } from "./issue.js";
 import type { ManifestPath } from "./manifest-paths.js";
 import { manifestPaths } from "./manifest-paths.js";
 
-// Declaration order of PluginManifest; exported for the type test only, not from index.ts.
+// Declaration order of PluginManifest (the type test pins the keys); not exported from index.ts.
 export const KNOWN_FIELDS = [
   "$schema",
   "name",
@@ -38,8 +38,16 @@ export const KNOWN_FIELDS = [
 ] as const;
 
 type KnownField = (typeof KNOWN_FIELDS)[number];
-// Exported for hooks-template.ts only, not from index.ts.
+const KNOWN: ReadonlySet<string> = new Set(KNOWN_FIELDS);
+// Shared by the core modules, not exported from index.ts.
 export type IssuePath = readonly (string | number)[];
+
+const issue = (severity: IssueSeverity, code: Issue["code"], message: string, path: IssuePath): Issue => ({
+  severity,
+  code,
+  message,
+  path,
+});
 
 interface FieldType {
   readonly expected: string;
@@ -158,42 +166,23 @@ function reservedSeverity(name: string): IssueSeverity | undefined {
 
 function nameIssues(value: unknown): Issue[] {
   if (typeof value !== "string") {
-    return [{
-      severity: "error",
-      code: "name-missing",
-      message: `name ${show(value)} is missing or not a string`,
-      path: ["name"],
-    }];
+    return [issue("error", "name-missing", `name ${show(value)} is missing or not a string`, ["name"])];
   }
   const issues: Issue[] = [];
+  const name = show(value);
   // One allowed-character rule covers empty, whitespace, "@", ":", "/", "\", control and bidi characters.
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)) {
-    issues.push({
-      severity: "error",
-      code: "name-invalid",
-      message: `name ${
-        show(value)
-      } must start with a letter or digit and contain only letters, digits, ".", "_" and "-"`,
-      path: ["name"],
-    });
+    const rule = `must start with a letter or digit and contain only letters, digits, ".", "_" and "-"`;
+    issues.push(issue("error", "name-invalid", `name ${name} ${rule}`, ["name"]));
   } else if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(value)) {
-    issues.push({
-      severity: "warning",
-      code: "name-invalid",
-      message: `name ${show(value)} should be kebab-case`,
-      path: ["name"],
-    });
+    issues.push(issue("warning", "name-invalid", `name ${name} should be kebab-case`, ["name"]));
   }
   const reserved = reservedSeverity(value);
   if (reserved !== undefined) {
-    issues.push({
-      severity: reserved,
-      code: "name-reserved",
-      message: reserved === "error"
-        ? `name ${show(value)} is reserved for official Anthropic plugins`
-        : `name ${show(value)} contains a reserved word ("claude", "anthropic" or "anthropics")`,
-      path: ["name"],
-    });
+    const message = reserved === "error"
+      ? `name ${name} is reserved for official Anthropic plugins`
+      : `name ${name} contains a reserved word ("claude", "anthropic" or "anthropics")`;
+    issues.push(issue(reserved, "name-reserved", message, ["name"]));
   }
   return issues;
 }
@@ -211,12 +200,7 @@ function pathIssues(paths: readonly ManifestPath[]): Issue[] {
   for (const { field, path, value } of paths) {
     const problem = pathProblem(field, value);
     if (problem !== undefined) {
-      issues.push({
-        severity: "error",
-        code: "path-invalid",
-        message: `${label(path)} ${show(value)} ${problem}`,
-        path,
-      });
+      issues.push(issue("error", "path-invalid", `${label(path)} ${show(value)} ${problem}`, path));
     }
   }
   return issues;
@@ -224,7 +208,6 @@ function pathIssues(paths: readonly ManifestPath[]): Issue[] {
 
 export function validateManifest(manifest: object): readonly Issue[] {
   const fields = new Map<string, unknown>(Object.entries(manifest));
-  const known = new Set<string>(KNOWN_FIELDS);
   const issues: Issue[] = [];
   const paths = manifestPaths(manifest);
 
@@ -239,43 +222,25 @@ export function validateManifest(manifest: object): readonly Issue[] {
     const { expected, test } = FIELD_TYPES[field];
     if (!test(value)) {
       // A wrong type skips the homepage, author and path rules so one fault is reported once.
-      issues.push({
-        severity: "error",
-        code: "field-type",
-        message: `${field} ${show(value)} must be ${expected}`,
-        path: [field],
-      });
+      issues.push(issue("error", "field-type", `${field} ${show(value)} must be ${expected}`, [field]));
       continue;
     }
     if (field === "author" && isRecord(value)) {
       const name = value["name"];
       if (typeof name !== "string" || name.trim() === "") {
-        issues.push({
-          severity: "error",
-          code: "author-invalid",
-          message: `author name ${show(name)} is missing or empty`,
-          path: ["author", "name"],
-        });
+        issues.push(
+          issue("error", "author-invalid", `author name ${show(name)} is missing or empty`, ["author", "name"]),
+        );
       }
     }
     if (field === "homepage" && typeof value === "string" && !URL.canParse(value)) {
-      issues.push({
-        severity: "error",
-        code: "homepage-invalid",
-        message: `homepage ${show(value)} is not a valid URL`,
-        path: ["homepage"],
-      });
+      issues.push(issue("error", "homepage-invalid", `homepage ${show(value)} is not a valid URL`, ["homepage"]));
     }
     issues.push(...pathIssues(paths.filter((entry) => entry.field === field)));
   }
 
-  for (const key of [...fields.keys()].filter((key) => !known.has(key)).sort()) {
-    issues.push({
-      severity: "warning",
-      code: "field-unknown",
-      message: `field ${show(key)} is not a known plugin manifest field`,
-      path: [key],
-    });
+  for (const key of [...fields.keys()].filter((key) => !KNOWN.has(key)).sort()) {
+    issues.push(issue("warning", "field-unknown", `field ${show(key)} is not a known plugin manifest field`, [key]));
   }
   return issues;
 }
