@@ -8,7 +8,7 @@ export interface HookTypesResult {
   readonly lines: readonly string[];
 }
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+export const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 // issueLine lives in rolldown-plugin, which the cli must not import.
 const format = (issue: Issue): string => `${issue.severity} ${issue.code}: ${issue.message}`;
@@ -48,9 +48,8 @@ export async function hookTypes(templatePath: string, check: boolean, strict = f
   const issues = [...rendered.issues, ...types.issues, ...placeholders];
   // Set: hooks that share event, matcher and server:tool print the same placeholder line, once is enough.
   const lines = [...new Set(issues.map(format))];
-  // Only the generator's own errors make the source incomplete; unrelated template errors are listed but do not block.
-  if (types.issues.some((issue) => issue.severity === "error")) return { code: 1, lines };
-  if (placeholders.some((issue) => issue.severity === "error")) return { code: 1, lines };
+  // Only the generator's own errors (incomplete source) and strict placeholders block; other template errors do not.
+  if ([...types.issues, ...placeholders].some((issue) => issue.severity === "error")) return { code: 1, lines };
 
   const targetPath = resolve(dirname(path), target);
   // The target must stay inside the template directory.
@@ -62,7 +61,8 @@ export async function hookTypes(templatePath: string, check: boolean, strict = f
   if (current === types.source) return { code: 0, lines: [...lines, `"${target}" is up to date`] };
   if (check) {
     const state = current === undefined ? "not found" : "is stale";
-    return { code: 1, lines: [...lines, `error hook-types-stale: "${target}" ${state}`] };
+    const stale = format({ severity: "error", code: "hook-types-stale", message: `"${target}" ${state}` });
+    return { code: 1, lines: [...lines, stale] };
   }
   await mkdir(dirname(targetPath), { recursive: true });
   await writeFile(targetPath, types.source);

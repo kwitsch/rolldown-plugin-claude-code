@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
-import { hookTypes } from "./hook-types.js";
+import { hookTypes, messageOf } from "./hook-types.js";
 
 const USAGE = "usage: claude-code-hook-types [--check] [--strict] [template]";
 
@@ -35,7 +35,7 @@ if (args === undefined) {
     }
     process.exitCode = result.code;
   } catch (error) {
-    console.error(`error: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`error: ${messageOf(error)}`);
     process.exitCode = 1;
   }
 }
