@@ -1,5 +1,18 @@
 # @kwitsch/tsdown-preset-claude-code
 
+## 0.5.0
+
+### Minor Changes
+
+- 6bde3b4: BREAKING: every mod build now runs the Claude Code mod check (`checkMod`), so a mod that imports `node:*`, a bare package or anything other than a relative path or `claude-code`, or that has no `register` export, fails the build with a `mod-invalid` problem; Claude Code itself rejects such mods at load time.
+
+### Patch Changes
+
+- Updated dependencies [e927d8a]
+- Updated dependencies [6bde3b4]
+  - @kwitsch/claude-code-plugin-core@0.6.0
+  - @kwitsch/rolldown-plugin-claude-code@0.5.0
+
 ## 0.4.2
 
 ### Patch Changes
