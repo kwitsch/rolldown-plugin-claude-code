@@ -24,10 +24,9 @@ async function targets(path: string): Promise<readonly Target[] | string> {
     ? hooks.modules
     : undefined;
   if (!Array.isArray(modules) || modules.length === 0) return `error: "${path}" has no "modules" entry`;
-  const items: readonly unknown[] = modules;
   const dir = dirname(abs);
   const list: Target[] = [];
-  for (const entry of items) {
+  for (const entry of modules as readonly unknown[]) {
     if (typeof entry !== "string") return `error: "modules" in "${path}" must list file paths`;
     const file = resolve(dir, entry);
     // The module must stay inside the hooks folder; "..x.js" is a plain file name, not a parent reference.
@@ -44,19 +43,20 @@ async function targets(path: string): Promise<readonly Target[] | string> {
 export async function checkModPath(path: string): Promise<HookTypesResult> {
   const found = await targets(path);
   if (typeof found === "string") return { code: 1, lines: [found] };
-  const errors: string[] = [];
-  const passed: string[] = [];
-  for (const { file, display } of found) {
+  // Reads run in parallel; Promise.all keeps the result in module order.
+  const results = await Promise.all(found.map(async ({ file, display }) => {
     let code: string;
     try {
       code = await readFile(file, "utf8");
     } catch (error) {
-      errors.push(`error: cannot read mod "${display}": ${messageOf(error)}`);
-      continue;
+      return [`error: cannot read mod "${display}": ${messageOf(error)}`];
     }
     const { issues } = checkMod(code, display);
-    if (issues.length > 0) errors.push(...issues.map(format));
-    else passed.push(`"${display}" meets the Claude Code mod rules`);
-  }
+    return issues.length > 0 ? issues.map(format) : [];
+  }));
+  const errors = results.flat();
+  const passed = found.filter((_, i) => results[i]!.length === 0).map(({ display }) =>
+    `"${display}" meets the Claude Code mod rules`
+  );
   return errors.length > 0 ? { code: 1, lines: errors } : { code: 0, lines: passed };
 }
