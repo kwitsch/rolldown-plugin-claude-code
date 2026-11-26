@@ -10,10 +10,10 @@
   },
   "license": "MIT",
   "type": "module",
-  "bin": { "claude-code-hook-types": "./dist/index.mjs" },
+  "bin": { "claude-code-check-mod": "./dist/check-mod-bin.mjs", "claude-code-hook-types": "./dist/index.mjs" },
   "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown src/index.ts src/check-mod-bin.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p ."
   },

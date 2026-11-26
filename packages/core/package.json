@@ -18,6 +18,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p ."
   },
+  "dependencies": {
+    "es-module-lexer": "catalog:"
+  },
   "devDependencies": {
     "@types/node": "catalog:",
     "tsdown": "catalog:",

@@ -163,7 +163,7 @@ export default await pluginConfig({
 
 The hooks template is the `hooks/hooks.json` you would write by hand, with TypeScript paths instead of built files. Paths in it are relative to the template's directory.
 
-- **`mod`:** a relative path to a `.ts`, `.mts` or `.tsx` file. It is built to `hooks/<name>.js` and becomes `"modules": ["./<name>.js"]`. Do not write `modules` yourself; it is `template-invalid`. A mod has no shebang and keeps only `claude-code` external. Claude Code itself accepts only relative imports and `claude-code` in a mod, so keep `node:*` imports out of it; imported helpers are inlined.
+- **`mod`:** a relative path to a `.ts`, `.mts` or `.tsx` file. It is built to `hooks/<name>.js` and becomes `"modules": ["./<name>.js"]`. Do not write `modules` yourself; it is `template-invalid`. A mod has no shebang and keeps only `claude-code` external. Claude Code itself accepts only relative imports and `claude-code` in a mod, and the build rejects any other import, including `node:*`; imported helpers are inlined.
 - **Command hooks:** a hook of type `command` whose `command` is a relative `.ts` or `.mts` path is built to `hooks/<name>.mjs` and rewritten to `"command": "node"` with `${CLAUDE_PLUGIN_ROOT}/hooks/<name>.mjs` as the first argument. Put arguments into `args`, never into `command`. Two hooks that share a source share the output.
 - **`hookTypes`:** a path to a generated file with the input types of `mcp_tool` hooks. It is written by the CLI; see [`@kwitsch/claude-code-plugin-cli`](https://github.com/kwitsch/rolldown-plugin-claude-code/tree/main/packages/cli#readme).
 - Everything else, including `command` hooks that run a shell command, is copied unchanged.

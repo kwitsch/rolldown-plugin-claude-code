@@ -1,6 +1,6 @@
 # @kwitsch/claude-code-plugin-cli
 
-Command-line tools for Claude Code plugin projects. It provides `claude-code-hook-types`, which writes and checks the TypeScript types of the `input` objects that `mcp_tool` hooks pass to MCP tools.
+Command-line tools for Claude Code plugin projects. It provides `claude-code-hook-types`, which writes and checks the TypeScript types of the `input` objects that `mcp_tool` hooks pass to MCP tools, and `claude-code-check-mod`, which checks a built hooks module against the rules Claude Code applies to it.
 
 ## Installation
 
@@ -126,5 +126,38 @@ pnpm exec claude-code-hook-types --check hooks.template.json
 ```
 
 The generated file has one fixed layout, so exclude it from your formatter (for dprint, add it to `excludes`).
+
+## Mod check
+
+A mod is a hooks module: a file listed in `modules` of `hooks/hooks.json`, such as `hooks/register.js`. `claude-code-check-mod` checks a built mod against what Claude Code accepts from a hooks module:
+
+```sh
+claude-code-check-mod <path>
+```
+
+- A path ending in `.json` is a `hooks.json`: every `modules` entry is resolved against its folder and checked. Each entry must be a string and stay inside that folder; a missing or empty `modules` is an error.
+- Any other path is checked as a mod file.
+- On success it prints `"<file>" meets the Claude Code mod rules` per file and exits with code 0. Otherwise it prints one line per violated rule to stderr and exits with code 1.
+
+Rules, each reported as a `mod-invalid` error:
+
+1. The file name ends in `.js`.
+2. The file does not start with a shebang (`#!`).
+3. The file can be read as an ES module.
+4. Every static import, `export ... from` and literal dynamic `import()` names a relative path (`./`, `../`) or exactly `claude-code`. Claude Code rejects anything else, including `node:*`.
+5. A dynamic `import()` with a computed specifier is an error, because rule 4 cannot be checked for it.
+6. The file has a named export `register` (`export function register(on, options) {...}`); Claude Code does not load a mod without it. A mod that re-exports with `export * from` skips this rule, because the export may come from the other file.
+
+Example output for a mod that imports `node:fs`:
+
+```text
+error mod-invalid: plugin/hooks/register.js: import "node:fs" is not allowed; a mod may import only relative paths and "claude-code"
+```
+
+[`@kwitsch/rolldown-plugin-claude-code`](https://github.com/kwitsch/rolldown-plugin-claude-code/tree/main/packages/rolldown-plugin#readme) runs the same check on every mod it builds, so the build fails before an invalid mod is written. Run the command in CI against the built plugin:
+
+```sh
+pnpm exec claude-code-check-mod plugin/hooks/hooks.json
+```
 
 Releases are published from GitHub Actions with npm provenance: the package page on npmjs links the commit and the workflow run that built each version.

@@ -95,7 +95,7 @@ Here the hooks template has `"mod": "./src/register.ts"` and a command hook `"co
 - **Input name:** the output path without its extension, for example `hooks/register` for a mod, `hooks/pre-tool` for a command hook, `mcp/server` for an MCP server, `bin/doctor` or `skills/<skill>/<name>` for scripts and `<folder>/index` for a bundle.
 - **Output:** `output.dir` is required (`output.file` is not supported) and `output.format` must be `"es"`. A mod ends in `.js`, everything else in `.mjs`.
 - **One chunk:** a mod or script build must produce exactly one chunk; only a bundle may load chunks with `import()`, named `<folder>/[name]-[hash].mjs`.
-- **Imports:** a mod keeps only `claude-code` and `node:*` external, a script only `node:*` and bundle entries, a bundle only `node:*` and its own chunks. Claude Code accepts only relative imports and `claude-code` in a mod, so keep `node:*` out of mods.
+- **Imports:** a mod may import only relative paths and `claude-code`; the build fails on `node:*` and on an import of a bundle. A script keeps only `node:*` and bundle entries external, a bundle only `node:*` and its own chunks.
 - **Shebang:** scripts must start with `#!/usr/bin/env node`, mods and bundles must not.
 - **File modes:** the plugin sets no file mode on built entries. Hooks and MCP servers start via `node` and need none; run `chmod 755` on built `bin` scripts yourself (the preset does this for every script).
 
