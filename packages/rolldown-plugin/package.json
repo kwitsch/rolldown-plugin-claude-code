@@ -1,6 +1,6 @@
 {
   "name": "@kwitsch/rolldown-plugin-claude-code",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Rolldown plugin that builds Claude Code plugins.",
   "keywords": ["claude-code", "claude-code-plugin", "rolldown", "rolldown-plugin"],
   "repository": {

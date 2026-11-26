@@ -1,5 +1,11 @@
 # @kwitsch/claude-code-plugin-core
 
+## 0.6.0
+
+### Minor Changes
+
+- e927d8a: Add `checkMod(code, file)`, which checks a built hooks module against the Claude Code mod rules (including the required `register` export) and reports violations with the new issue code `mod-invalid`; core now depends on `es-module-lexer`.
+
 ## 0.5.0
 
 ### Minor Changes

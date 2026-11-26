@@ -1,5 +1,16 @@
 # @kwitsch/claude-code-plugin-cli
 
+## 0.3.0
+
+### Minor Changes
+
+- 83786fa: Add the `claude-code-check-mod <path>` command, which checks a built mod, or every `modules` entry of a `hooks.json`, against the Claude Code mod rules and exits with code 1 on a violation.
+
+### Patch Changes
+
+- Updated dependencies [e927d8a]
+  - @kwitsch/claude-code-plugin-core@0.6.0
+
 ## 0.2.0
 
 ### Minor Changes
