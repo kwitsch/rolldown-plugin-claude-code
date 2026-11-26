@@ -17,6 +17,7 @@ export const ISSUE_CODES = [
   "hook-input-invalid",
   "hook-types-stale",
   "hook-placeholder-unknown",
+  "mod-invalid",
 ] as const;
 
 export type IssueCode = (typeof ISSUE_CODES)[number];

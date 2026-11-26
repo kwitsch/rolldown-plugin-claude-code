@@ -41,6 +41,7 @@ it("Issue codes are exactly ISSUE_CODES, unique and kebab-case", () => {
     | "hook-input-invalid"
     | "hook-types-stale"
     | "hook-placeholder-unknown"
+    | "mod-invalid"
   >();
   expect(new Set(ISSUE_CODES).size).toBe(ISSUE_CODES.length);
   for (const code of ISSUE_CODES) expect(code).toMatch(/^[a-z]+(-[a-z]+)*$/);
