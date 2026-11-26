@@ -182,14 +182,24 @@ describe("assets", () => {
 });
 
 describe("output checks", () => {
-  it("allows node:* and claude-code imports in a mod", async () => {
+  it("allows claude-code imports in a mod", async () => {
     const root = await project({
       ...MOD_FILES,
-      "src/register.ts":
-        "import { readFileSync } from \"node:fs\";\nimport { on } from \"claude-code\";\nexport function register(): unknown { return [readFileSync, on]; }\n",
+      "src/register.ts": "import { on } from \"claude-code\";\nexport function register(): unknown { return on; }\n",
     });
     const { out } = await build(root, TEMPLATE);
     expect(await files(out)).toContain("hooks/register.js");
+  });
+
+  it("rejects a node:* import in a mod", async () => {
+    const root = await project({
+      ...MOD_FILES,
+      "src/register.ts":
+        "import { readFileSync } from \"node:fs\";\nexport function register(): unknown { return readFileSync; }\n",
+    });
+    await expect(build(root, TEMPLATE)).rejects.toThrow(
+      /import "node:fs" is not allowed; a mod may import only relative paths and "claude-code"/,
+    );
   });
 
   it("rejects an input that is not an entry of the template", async () => {
@@ -222,14 +232,27 @@ describe("output checks", () => {
     );
   });
 
-  it("rejects a bare external import", async () => {
+  it("rejects a bare external import in a script with a builtin hint", async () => {
+    const root = await project({
+      "package.json": JSON.stringify({ name: "demo", version: "1.0.0" }),
+      "hooks.template.json": JSON.stringify({
+        hooks: { PreToolUse: [{ hooks: [{ type: "command", command: "./src/pre.ts" }] }] },
+      }),
+      "src/pre.ts": "import { readFileSync } from \"fs\";\nconsole.log(readFileSync);\n",
+    });
+    await expect(build(root, TEMPLATE, { "hooks/pre": "src/pre.ts" }, MCP_OUTPUT)).rejects.toThrow(
+      /import "fs" is not allowed; only node:\* may stay external; "fs" is a Node builtin, import "node:fs" instead \(tsdown option nodeProtocol: true/,
+    );
+  });
+
+  it("rejects a bare external import in a mod", async () => {
     const root = await project({
       ...MOD_FILES,
       "src/register.ts":
         "import { readFileSync } from \"fs\";\nexport function register(): unknown { return readFileSync; }\n",
     });
     await expect(build(root, TEMPLATE)).rejects.toThrow(
-      /import "fs" is not allowed; only node:\* and claude-code may stay external; "fs" is a Node builtin, import "node:fs" instead \(tsdown option nodeProtocol: true/,
+      /import "fs" is not allowed; a mod may import only relative paths and "claude-code"/,
     );
   });
 
@@ -584,7 +607,7 @@ describe("bundle imports", () => {
         "import { greeting } from \"./lib/shared/index.js\";\nexport function register(): unknown { return greeting; }\n",
     });
     await expect(build(root, { ...TEMPLATE, ...LIB })).rejects.toThrow(
-      /import "\.\.\/lib\/shared\/index\.mjs" is not allowed; only node:\* and claude-code may stay external/,
+      /import "\.\.\/lib\/shared\/index\.mjs" is not allowed; a mod must not import a bundle or another file/,
     );
   });
 

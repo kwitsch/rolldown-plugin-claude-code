@@ -1,5 +1,5 @@
 import type { FileCopy, Issue } from "@kwitsch/claude-code-plugin-core";
-import { validateLayout } from "@kwitsch/claude-code-plugin-core";
+import { checkMod, validateLayout } from "@kwitsch/claude-code-plugin-core";
 import { chmod, copyFile, mkdir, stat } from "node:fs/promises";
 import { builtinModules } from "node:module";
 import { dirname, extname, join, posix, resolve, sep } from "node:path";
@@ -117,19 +117,18 @@ function checkChunk(chunks: readonly OutputChunk[], entries: readonly ResolvedEn
       relativeSpecifier(entry.output, bundle.output)
     )
     : [];
-  const allowed = entry.kind === "mod"
-    ? "only node:* and claude-code"
-    : bundleImports.length > 0
-    ? "only node:* and bundle entries"
-    : "only node:*";
+  const allowed = bundleImports.length > 0 ? "only node:* and bundle entries" : "only node:*";
   for (const id of [...chunk.imports, ...chunk.dynamicImports]) {
-    if (!id.startsWith("node:") && !(entry.kind === "mod" && id === "claude-code") && !bundleImports.includes(id)) {
+    if (entry.kind === "mod") {
+      // checkMod reports every non-relative specifier; a relative one here is a bundle entry or another file.
+      if (id.startsWith("./") || id.startsWith("../")) {
+        line(`import "${id}" is not allowed; a mod must not import a bundle or another file`);
+      }
+    } else if (!id.startsWith("node:") && !bundleImports.includes(id)) {
       line(notAllowed(id, allowed));
     }
   }
-  const shebang = chunk.code.startsWith("#!");
-  if (entry.kind === "mod" && shebang) line("a mod must not start with a shebang");
-  if (entry.kind === "script" && !shebang) line("a script must start with a shebang");
+  if (entry.kind === "script" && !chunk.code.startsWith("#!")) line("a script must start with a shebang");
   return { problems, entry };
 }
 
@@ -220,7 +219,15 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
       if (loaded.entries.length > 0) {
         const chunks = Object.values(bundle).filter((output): output is OutputChunk => output.type === "chunk");
         const result = checkChunk(chunks, loaded.entries, outputOptions.format);
-        if (result.problems.length > 0) this.error(formatProblems(result.problems));
+        const problems = [...result.problems];
+        // The mod's final code gets the same rules as claude-code-check-mod; a missing chunk is a checkChunk file-name problem.
+        const mod = result.entry?.kind === "mod" ? bundle[result.entry.output] : undefined;
+        if (mod?.type === "chunk") {
+          problems.push(
+            ...checkMod(mod.code, mod.fileName).issues.map((issue) => `error  ${issue.file}: ${issue.message}`),
+          );
+        }
+        if (problems.length > 0) this.error(formatProblems(problems));
         entry = result.entry;
       }
       if (!emitMetadata) return;
