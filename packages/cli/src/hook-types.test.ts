@@ -37,6 +37,27 @@ async function project(template: unknown, files: Record<string, string> = {}): P
   return templatePath;
 }
 
+// Same generated SOURCE as TEMPLATE, but with two unknown placeholders: ${abc} and, under Write|Edit, ${tool_input.command}.
+const UNKNOWN = {
+  hookTypes: TARGET,
+  hooks: {
+    PreToolUse: [{
+      matcher: "Write|Edit",
+      hooks: [{ type: "mcp_tool", server: "s", tool: "t", input: { path: "${abc}-${tool_input.command}" } }],
+    }],
+  },
+};
+
+const WARNINGS = [
+  "warning hook-placeholder-unknown: PreToolUse->Write|Edit->s:t ${abc}",
+  "warning hook-placeholder-unknown: PreToolUse->Write|Edit->s:t ${tool_input.command}",
+];
+
+const ERRORS = [
+  "error hook-placeholder-unknown: PreToolUse->Write|Edit->s:t ${abc}",
+  "error hook-placeholder-unknown: PreToolUse->Write|Edit->s:t ${tool_input.command}",
+];
+
 const read = (templatePath: string): Promise<string> => readFile(join(dirname(templatePath), TARGET), "utf8");
 
 describe("hookTypes", () => {
@@ -121,5 +142,39 @@ describe("hookTypes", () => {
     const parsed = await hookTypes(broken, false);
     expect(parsed.code).toBe(1);
     expect(parsed.lines[0]).toMatch(/^error: cannot read hooks template ".*hooks\.template\.json": /);
+  });
+
+  it("warns about unknown placeholders and still writes the file", async () => {
+    const templatePath = await project(UNKNOWN);
+    expect(await hookTypes(templatePath, false)).toEqual({ code: 0, lines: [...WARNINGS, `wrote "${TARGET}"`] });
+    expect(await read(templatePath)).toBe(SOURCE);
+  });
+
+  it("keeps the --check outcome with unknown placeholders", async () => {
+    const current = await project(UNKNOWN, { [TARGET]: SOURCE });
+    expect(await hookTypes(current, true)).toEqual({ code: 0, lines: [...WARNINGS, `"${TARGET}" is up to date`] });
+    const stale = await project(UNKNOWN, { [TARGET]: "old\n" });
+    expect(await hookTypes(stale, true)).toEqual({
+      code: 1,
+      lines: [...WARNINGS, `error hook-types-stale: "${TARGET}" is stale`],
+    });
+  });
+
+  it("fails with strict on unknown placeholders, lists all of them and writes nothing", async () => {
+    const templatePath = await project(UNKNOWN);
+    expect(await hookTypes(templatePath, false, true)).toEqual({ code: 1, lines: ERRORS });
+    await expect(read(templatePath)).rejects.toThrow(/ENOENT/);
+  });
+
+  it("fails with strict before the --check stale step", async () => {
+    const templatePath = await project(UNKNOWN, { [TARGET]: "old\n" });
+    expect(await hookTypes(templatePath, true, true)).toEqual({ code: 1, lines: ERRORS });
+    expect(await read(templatePath)).toBe("old\n");
+  });
+
+  it("writes the file with strict when every placeholder is known", async () => {
+    const templatePath = await project(TEMPLATE);
+    expect(await hookTypes(templatePath, false, true)).toEqual({ code: 0, lines: [`wrote "${TARGET}"`] });
+    expect(await read(templatePath)).toBe(SOURCE);
   });
 });

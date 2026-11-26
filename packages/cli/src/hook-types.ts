@@ -1,5 +1,5 @@
 import type { Issue } from "@kwitsch/claude-code-plugin-core";
-import { renderHookInputTypes, renderHooksTemplate } from "@kwitsch/claude-code-plugin-core";
+import { checkHookPlaceholders, renderHookInputTypes, renderHooksTemplate } from "@kwitsch/claude-code-plugin-core";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 
@@ -24,7 +24,8 @@ async function readIfExists(path: string): Promise<string | undefined> {
 }
 
 // Writes, or with check only compares, the hook input types file named by the template's hookTypes field.
-export async function hookTypes(templatePath: string, check: boolean): Promise<HookTypesResult> {
+// strict turns unknown mcp_tool input placeholders from warnings into errors that stop before any write or stale check.
+export async function hookTypes(templatePath: string, check: boolean, strict = false): Promise<HookTypesResult> {
   const path = resolve(templatePath);
   let template: unknown;
   try {
@@ -42,10 +43,13 @@ export async function hookTypes(templatePath: string, check: boolean): Promise<H
     };
   }
   const types = renderHookInputTypes(template);
-  const issues = [...rendered.issues, ...types.issues];
+  const unknown = checkHookPlaceholders(template).issues;
+  const placeholders = strict ? unknown.map((issue) => ({ ...issue, severity: "error" as const })) : unknown;
+  const issues = [...rendered.issues, ...types.issues, ...placeholders];
   const lines = issues.map(format);
   // Only the generator's own errors make the source incomplete; unrelated template errors are listed but do not block.
   if (types.issues.some((issue) => issue.severity === "error")) return { code: 1, lines };
+  if (strict && unknown.length > 0) return { code: 1, lines };
 
   const targetPath = resolve(dirname(path), target);
   // The target must stay inside the template directory.
