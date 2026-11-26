@@ -12,6 +12,7 @@
     "format:check": "dprint check",
     "lint": "oxlint",
     "hook-types:check": "node packages/cli/dist/index.mjs --check fixtures/mcp-hook/hooks.template.json",
+    "mod:check": "node packages/cli/dist/check-mod-bin.mjs fixtures/mod-and-script/expected/hooks/hooks.json",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "pnpm --filter \"./packages/*\" build && changeset publish"

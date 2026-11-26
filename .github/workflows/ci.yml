@@ -25,6 +25,7 @@ jobs:
       - run: pnpm format:check
       - run: pnpm build
       - run: pnpm hook-types:check
+      - run: pnpm mod:check
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
