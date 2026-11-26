@@ -88,13 +88,14 @@ The command also checks every `${...}` in a string value of an `mcp_tool` hook's
 <severity> hook-placeholder-unknown: <Event>-><matcher>-><server>:<tool> ${var}
 ```
 
-The matcher segment is left out when the group has none or the event has no matcher support. Unknown placeholders are warnings; with `--strict` they are errors.
+The matcher segment is left out when the group has none or the event has no matcher support. Identical lines are printed once. Unknown placeholders are warnings; with `--strict` they are errors.
 
 - Known fields are the common input fields plus the event's own fields from the [hooks reference](https://code.claude.com/docs/en/hooks#hook-input-and-output). The docs publish no list of substitution variables, so the list is derived from each event's input section and may lag new Claude Code versions.
 - `tool_input`, `tool_response`, `mcp_server` and other object or array fields accept any sub-path.
-- `tool_input` is limited to the tool's own fields only on tool events whose matcher is an exact list of `Write` and/or `Edit` (Write: `file_path`, `content`; Edit: `file_path`, `old_string`, `new_string`, `replace_all`). It stays open for every other tool, and for regex, `*` or missing matchers.
+- On tool events whose matcher is an exact list of built-in tools, `tool_input` is limited to those tools' fields: Agent, Bash, Edit, NotebookEdit, Read, Skill, WebFetch, WebSearch and Write, as Claude Code 2.1.332 defines them. It stays open when the list names any other tool (Glob, Grep, PowerShell, MCP tools), and for regex, `*` or missing matchers.
 - Events Claude Code does not document are not checked.
-- `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}`, `${CLAUDE_PROJECT_DIR}` and `${user_config.*}` are documented for `command`/`args` only. Whether they resolve inside `input` is undocumented, so the check reports them as unknown.
+- Only `${name}` with a name of letters, digits, `_` and `.` that starts with a letter or `_` is a placeholder. Claude Code 2.1.332 leaves anything else, such as `${}`, `${ cwd }` or `${a-b}`, as literal text, and has no escape: `$${cwd}` is `$` followed by the cwd.
+- An unknown placeholder becomes an empty string. In Claude Code 2.1.332 that includes `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}`, `${CLAUDE_PROJECT_DIR}`, `${user_config.*}` and environment variables: they are substituted in `command`/`args` only, so the check reports them in `input`.
 
 ## Usage
 

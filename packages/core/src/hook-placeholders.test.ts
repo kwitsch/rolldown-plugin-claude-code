@@ -108,7 +108,14 @@ describe("checkHookPlaceholders", () => {
     ]);
   });
 
-  it.each(["mcp__.*", "^Edit$", "*", undefined, "Write|Foo", "Bash", "constructor"])(
+  it("limits tool_input to the fields of the other listed built-in tools", () => {
+    expect(check("PreToolUse", "Bash|Read", { a: "${tool_input.command}", b: "${tool_input.pages}" })).toEqual([]);
+    expect(check("PostToolUse", "Bash", { a: "${tool_input.file_path}" })).toEqual([
+      unknown("PostToolUse->Bash->plugin:server:mcp_tool", "tool_input.file_path", "PostToolUse", "a"),
+    ]);
+  });
+
+  it.each(["mcp__.*", "^Edit$", "*", undefined, "Write|Foo", "Grep", "Bash|Glob", "constructor"])(
     "keeps tool_input open for the matcher %s",
     (matcher) => {
       expect(check("PreToolUse", matcher, { a: "${tool_input.anything}" })).toEqual([]);
@@ -128,19 +135,21 @@ describe("checkHookPlaceholders", () => {
     ]);
   });
 
-  it("reports empty, padded and plugin variables verbatim and ignores unclosed ones", () => {
+  it("reports plugin variables and ignores text Claude Code does not substitute", () => {
     const input = {
-      a: "${}",
-      b: "${CLAUDE_PLUGIN_ROOT}",
-      c: "${user_config.token}",
-      d: "${abc",
-      e: "${ tool_name }",
+      a: "${CLAUDE_PLUGIN_ROOT}",
+      b: "${user_config.token}",
+      c: "$${abc}",
+      d: "${${def}}",
+      e: "${cwd.}",
+      literal: ["${}", "${ tool_name }", "${a-b}", "${.cwd}", "${1}", "${cwd[0]}", "${abc", "${cwd:-x}"],
     };
     expect(check("PreToolUse", undefined, input)).toEqual([
-      unknown("PreToolUse->plugin:server:mcp_tool", "", "PreToolUse", "a"),
-      unknown("PreToolUse->plugin:server:mcp_tool", "CLAUDE_PLUGIN_ROOT", "PreToolUse", "b"),
-      unknown("PreToolUse->plugin:server:mcp_tool", "user_config.token", "PreToolUse", "c"),
-      unknown("PreToolUse->plugin:server:mcp_tool", " tool_name ", "PreToolUse", "e"),
+      unknown("PreToolUse->plugin:server:mcp_tool", "CLAUDE_PLUGIN_ROOT", "PreToolUse", "a"),
+      unknown("PreToolUse->plugin:server:mcp_tool", "user_config.token", "PreToolUse", "b"),
+      unknown("PreToolUse->plugin:server:mcp_tool", "abc", "PreToolUse", "c"),
+      unknown("PreToolUse->plugin:server:mcp_tool", "def", "PreToolUse", "d"),
+      unknown("PreToolUse->plugin:server:mcp_tool", "cwd.", "PreToolUse", "e"),
     ]);
   });
 
