@@ -49,7 +49,7 @@ export async function hookTypes(templatePath: string, check: boolean, strict = f
   const lines = issues.map(format);
   // Only the generator's own errors make the source incomplete; unrelated template errors are listed but do not block.
   if (types.issues.some((issue) => issue.severity === "error")) return { code: 1, lines };
-  if (strict && unknown.length > 0) return { code: 1, lines };
+  if (placeholders.some((issue) => issue.severity === "error")) return { code: 1, lines };
 
   const targetPath = resolve(dirname(path), target);
   // The target must stay inside the template directory.
