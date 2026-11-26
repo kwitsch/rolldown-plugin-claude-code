@@ -13,7 +13,7 @@ export { pluginManifest } from "./map-manifest.js";
 export type { ManifestResult } from "./map-manifest.js";
 export { renderMcpTemplate } from "./mcp-template.js";
 export type { McpTemplateResult } from "./mcp-template.js";
-export { checkMod } from "./mod-check.js";
+export { checkMod, isRelativeSpecifier } from "./mod-check.js";
 export type { ModCheckResult } from "./mod-check.js";
 export type { PackageAuthor, PackageJson, PackageRepository } from "./package-json.js";
 export type { PluginConfig } from "./plugin-config.js";

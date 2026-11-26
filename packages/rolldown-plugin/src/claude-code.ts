@@ -1,5 +1,5 @@
 import type { FileCopy, Issue } from "@kwitsch/claude-code-plugin-core";
-import { checkMod, validateLayout } from "@kwitsch/claude-code-plugin-core";
+import { checkMod, isRelativeSpecifier, validateLayout } from "@kwitsch/claude-code-plugin-core";
 import { chmod, copyFile, mkdir, stat } from "node:fs/promises";
 import { builtinModules } from "node:module";
 import { dirname, extname, join, posix, resolve, sep } from "node:path";
@@ -121,7 +121,7 @@ function checkChunk(chunks: readonly OutputChunk[], entries: readonly ResolvedEn
   for (const id of [...chunk.imports, ...chunk.dynamicImports]) {
     if (entry.kind === "mod") {
       // checkMod reports every non-relative specifier; a relative one here is a bundle entry or another file.
-      if (id.startsWith("./") || id.startsWith("../")) {
+      if (isRelativeSpecifier(id)) {
         line(`import "${id}" is not allowed; a mod must not import a bundle or another file`);
       }
     } else if (!id.startsWith("node:") && !bundleImports.includes(id)) {
@@ -220,12 +220,11 @@ export function claudeCode(options: ClaudeCodeOptions = {}): Plugin {
         const chunks = Object.values(bundle).filter((output): output is OutputChunk => output.type === "chunk");
         const result = checkChunk(chunks, loaded.entries, outputOptions.format);
         const problems = [...result.problems];
-        // The mod's final code gets the same rules as claude-code-check-mod; a missing chunk is a checkChunk file-name problem.
-        const mod = result.entry?.kind === "mod" ? bundle[result.entry.output] : undefined;
-        if (mod?.type === "chunk") {
-          problems.push(
-            ...checkMod(mod.code, mod.fileName).issues.map((issue) => `error  ${issue.file}: ${issue.message}`),
-          );
+        // Every chunk of a mod build gets the same rules as claude-code-check-mod, whatever its file name.
+        if (result.entry?.kind === "mod") {
+          const issues = chunks.flatMap((chunk) => checkMod(chunk.code, chunk.fileName).issues);
+          const width = Math.max(0, ...issues.map((issue) => issue.code.length));
+          problems.push(...issues.map((issue) => issueLine(issue, width)));
         }
         if (problems.length > 0) this.error(formatProblems(problems));
         entry = result.entry;

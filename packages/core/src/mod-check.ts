@@ -7,6 +7,12 @@ export interface ModCheckResult {
 
 const ALLOWED = "a mod may import only relative paths and \"claude-code\"";
 
+// Initialised once at load; the WASM lexer needs no file system access.
+initSync();
+
+/** A relative import specifier: starts with "./" or "../". */
+export const isRelativeSpecifier = (id: string): boolean => id.startsWith("./") || id.startsWith("../");
+
 // Claude Code loads a hooks module only with relative imports and "claude-code" (it rejects even node:*).
 export function checkMod(code: string, file: string): ModCheckResult {
   // Set: each distinct message once, in first-seen order.
@@ -18,7 +24,6 @@ export function checkMod(code: string, file: string): ModCheckResult {
   if (code.startsWith("#!")) messages.add("a mod must not start with a shebang");
   let imports: ReturnType<typeof parse>[0];
   try {
-    initSync();
     // The shebang is reported above; blank it (same length) so the lexer never trips over it.
     [imports] = parse(code.replace(/^#![^\n]*/, (line) => " ".repeat(line.length)));
   } catch (error) {
@@ -28,7 +33,7 @@ export function checkMod(code: string, file: string): ModCheckResult {
   for (const { t, n } of imports) {
     if (t === ImportType.ImportMeta) continue;
     if (n === undefined) messages.add(`dynamic import with a computed specifier; ${ALLOWED}`);
-    else if (n !== "claude-code" && !n.startsWith("./") && !n.startsWith("../")) {
+    else if (n !== "claude-code" && !isRelativeSpecifier(n)) {
       messages.add(`import "${n}" is not allowed; ${ALLOWED}`);
     }
   }
