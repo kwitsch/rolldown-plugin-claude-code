@@ -22,10 +22,12 @@ export function checkMod(code: string, file: string): ModCheckResult {
   });
   if (!file.endsWith(".js")) messages.add("file name must end in \".js\"");
   if (code.startsWith("#!")) messages.add("a mod must not start with a shebang");
+  // The shebang is reported above; blank it (same length) so the lexer never trips over it.
+  const source = code.replace(/^#![^\n]*/, (line) => " ".repeat(line.length));
   let imports: ReturnType<typeof parse>[0];
+  let exports: ReturnType<typeof parse>[1];
   try {
-    // The shebang is reported above; blank it (same length) so the lexer never trips over it.
-    [imports] = parse(code.replace(/^#![^\n]*/, (line) => " ".repeat(line.length)));
+    [imports, exports] = parse(source);
   } catch (error) {
     messages.add(`cannot be read as an ES module: ${error instanceof Error ? error.message : String(error)}`);
     return result();
@@ -36,6 +38,11 @@ export function checkMod(code: string, file: string): ModCheckResult {
     else if (n !== "claude-code" && !isRelativeSpecifier(n)) {
       messages.add(`import "${n}" is not allowed; ${ALLOWED}`);
     }
+  }
+  // shortcut: an `export * from` may supply register and is not followed here, so it skips the rule; upgrade by resolving the target.
+  const reExportsAll = imports.some(({ ss, se }) => /^export\s*\*/.test(source.slice(ss, se)));
+  if (!reExportsAll && !exports.some(({ n }) => n === "register")) {
+    messages.add("no export named register (export function register(on, options) {...})");
   }
   return result();
 }

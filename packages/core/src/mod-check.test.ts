@@ -5,6 +5,8 @@ import { checkMod } from "./index.js";
 
 const ALLOWED = "a mod may import only relative paths and \"claude-code\"";
 const FILE = "hooks/register.js";
+const REGISTER = "export function register() {}\n";
+const NO_REGISTER = "no export named register (export function register(on, options) {...})";
 
 const issue = (message: string, file: string = FILE): Issue => ({
   severity: "error",
@@ -34,13 +36,13 @@ describe("checkMod", () => {
     ["an export from", "export * from \"lodash\";\n", "lodash"],
     ["a literal dynamic import", "export const load = () => import(\"node:fs\");\n", "node:fs"],
   ])("rejects %s", (_name, code, specifier) => {
-    expect(checkMod(code, FILE)).toEqual({
+    expect(checkMod(code + REGISTER, FILE)).toEqual({
       issues: [issue(`import "${specifier}" is not allowed; ${ALLOWED}`)],
     });
   });
 
   it("rejects a computed dynamic import", () => {
-    expect(checkMod("export const load = (name) => import(name);\n", FILE)).toEqual({
+    expect(checkMod(`export const load = (name) => import(name);\n${REGISTER}`, FILE)).toEqual({
       issues: [issue(`dynamic import with a computed specifier; ${ALLOWED}`)],
     });
   });
@@ -73,19 +75,40 @@ describe("checkMod", () => {
       "export const url = import.meta.url;",
       "export const lazy = () => import(\"./c.js\");",
       "export { a, b, on };",
-      "",
+      REGISTER,
     ].join("\n");
     expect(checkMod(code, FILE)).toEqual({ issues: [] });
   });
 
   it("ignores import text inside a string literal and a comment", () => {
-    const code = "// import(\"node:fs\")\nexport const text = 'import(\"node:fs\")';\n";
+    const code = `// import("node:fs")\nexport const text = 'import("node:fs")';\n${REGISTER}`;
     expect(checkMod(code, FILE)).toEqual({ issues: [] });
   });
 
   it("reports the same specifier once", () => {
-    expect(checkMod("import \"fs\";\nimport \"fs\";\n", FILE)).toEqual({
+    expect(checkMod(`import "fs";\nimport "fs";\n${REGISTER}`, FILE)).toEqual({
       issues: [issue(`import "fs" is not allowed; ${ALLOWED}`)],
     });
+  });
+
+  it.each([
+    ["no export", "export {};\n"],
+    ["an empty file", ""],
+    ["only a default export", "export default function () {}\n"],
+    ["another named export", "export const on = 1;\n"],
+  ])("rejects a mod with %s", (_name, code) => {
+    expect(checkMod(code, FILE)).toEqual({ issues: [issue(NO_REGISTER)] });
+  });
+
+  it.each([
+    ["a function declaration", "export function register() {}\n"],
+    ["an export list", "const register = () => {};\nexport { register };\n"],
+    ["a renamed export", "const setup = () => {};\nexport { setup as register };\n"],
+  ])("accepts register as %s", (_name, code) => {
+    expect(checkMod(code, FILE)).toEqual({ issues: [] });
+  });
+
+  it("skips the register rule when the mod re-exports everything from another file", () => {
+    expect(checkMod("export * from \"./impl.js\";\n", FILE)).toEqual({ issues: [] });
   });
 });

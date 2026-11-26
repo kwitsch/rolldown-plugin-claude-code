@@ -146,6 +146,7 @@ Rules, each reported as a `mod-invalid` error:
 3. The file can be read as an ES module.
 4. Every static import, `export ... from` and literal dynamic `import()` names a relative path (`./`, `../`) or exactly `claude-code`. Claude Code rejects anything else, including `node:*`.
 5. A dynamic `import()` with a computed specifier is an error, because rule 4 cannot be checked for it.
+6. The file has a named export `register` (`export function register(on, options) {...}`); Claude Code does not load a mod without it. A mod that re-exports with `export * from` skips this rule, because the export may come from the other file.
 
 Example output for a mod that imports `node:fs`:
 
