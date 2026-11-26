@@ -1,6 +1,15 @@
 {
   // A project config replaces the linter's defaults, so MD013 (line length) is disabled here again; dprint owns wrapping.
   "config": { "MD013": false },
-  // Changesets, the CHANGELOGs generated from them and fixture skills (front matter plus body, goldens) start without a heading.
-  "ignores": [".changeset/**", "packages/*/CHANGELOG.md", "fixtures/**/SKILL.md", "**/node_modules/**"]
+  // Build outputs (dist, fixture plugin/expected) and nested worktrees are never linted. Changesets, the CHANGELOGs generated from them and fixture skills (front matter plus body, goldens) start without a heading.
+  "ignores": [
+    ".changeset/**",
+    "packages/*/CHANGELOG.md",
+    "fixtures/**/SKILL.md",
+    "**/node_modules/**",
+    "**/dist/**",
+    "fixtures/*/expected/**",
+    "fixtures/*/plugin/**",
+    ".claude/worktrees/**"
+  ]
 }
